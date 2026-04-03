@@ -15,6 +15,10 @@ app.get("/", (req, res) => {
   res.json({ message: "API Express OK" });
 });
 
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
 app.use("/api", apiRoutes);
 
 app.listen(PORT, () => {
