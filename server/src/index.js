@@ -4,6 +4,7 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import apiRoutes from "./routes/api.js";
+import sitesRoutes from "./routes/sites.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -20,6 +21,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api", apiRoutes);
+app.use("/api/sites", sitesRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
