@@ -1,4 +1,4 @@
-import { supabase } from "../supabase.js";
+import { supabase } from "../lib/supabase.js";
 
 export const getAllSites = async () => {
   const { data, error } = await supabase.from("sites").select("*");
