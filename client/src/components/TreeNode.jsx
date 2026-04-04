@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const LONG_PRESS_DELAY = 650;
 
@@ -171,7 +171,6 @@ export default function TreeNode({
         longPressTriggeredRef.current = false;
         return;
       }
-
       onFileClick?.(node);
       return;
     }
@@ -183,7 +182,6 @@ export default function TreeNode({
 
   const handleContextMenu = (event) => {
     if (node.type !== "file") return;
-
     event.preventDefault();
     event.stopPropagation();
 
@@ -207,7 +205,6 @@ export default function TreeNode({
 
     longPressTimerRef.current = setTimeout(() => {
       longPressTriggeredRef.current = true;
-
       onFileContextMenu?.({
         file: node,
         x: touch.clientX,
@@ -230,13 +227,8 @@ export default function TreeNode({
     }
   };
 
-  const handleTouchEnd = () => {
-    clearLongPress();
-  };
-
-  const handleTouchCancel = () => {
-    clearLongPress();
-  };
+  const handleTouchEnd = () => clearLongPress();
+  const handleTouchCancel = () => clearLongPress();
 
   const handleKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {

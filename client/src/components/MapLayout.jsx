@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MapContainer,
   Marker,
@@ -41,22 +41,6 @@ function ResizeMap({ menuOpen }) {
   }, [map, menuOpen]);
 
   return null;
-}
-
-function BasemapOption({ type, label, active, onClick }) {
-  const img = type === "road" ? roadImg : satelliteImg;
-
-  return (
-    <button
-      type="button"
-      className={`gm-option ${active ? "active" : ""}`}
-      onClick={onClick}
-      aria-pressed={active}
-    >
-      <img src={img} alt="" className="gm-option-img" />
-      <span>{label}</span>
-    </button>
-  );
 }
 
 function BasemapSwitcher({ basemap, setBasemap }) {
@@ -275,7 +259,8 @@ export default function MapLayout() {
   const [basemap, setBasemap] = useState("road");
   const [selectedFile, setSelectedFile] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
-  const [treeCommand, setTreeCommand] = useState(null);
+  const [treeMode, setTreeMode] = useState("default");
+  const [treeVersion, setTreeVersion] = useState(0);
 
   const toggleMenu = () => setMenuOpen((prev) => !prev);
   const closeMenu = () => setMenuOpen(false);
@@ -337,11 +322,13 @@ export default function MapLayout() {
   };
 
   const expandAll = () => {
-    setTreeCommand({ type: "expand", key: Date.now() });
+    setTreeMode("expand");
+    setTreeVersion((v) => v + 1);
   };
 
   const collapseAll = () => {
-    setTreeCommand({ type: "collapse", key: Date.now() });
+    setTreeMode("collapse");
+    setTreeVersion((v) => v + 1);
   };
 
   return (
@@ -470,11 +457,12 @@ export default function MapLayout() {
             </div>
 
             <CartoTree
+              key={`${treeMode}-${treeVersion}`}
               data={treeData}
               selectedFileId={selectedFile?.id}
               onFileClick={handleFileClick}
               onFileContextMenu={handleFileContextMenu}
-              treeCommand={treeCommand}
+              treeMode={treeMode}
             />
           </div>
         </aside>
