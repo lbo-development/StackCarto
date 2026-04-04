@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 
 const LONG_PRESS_DELAY = 650;
 
@@ -132,15 +132,17 @@ export default function TreeNode({
   onFileClick,
   onFileContextMenu,
   selectedFileId,
-  treeCommand,
+  treeMode = "default",
 }) {
   const hasChildren = Array.isArray(node.children) && node.children.length > 0;
 
-  const defaultOpen = useMemo(() => {
+  const initialOpen = useMemo(() => {
+    if (treeMode === "expand") return hasChildren;
+    if (treeMode === "collapse") return false;
     return level < 2 || node.type === "service" || node.type === "site";
-  }, [level, node.type]);
+  }, [treeMode, hasChildren, level, node.type]);
 
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(initialOpen);
 
   const isSelected = node.type === "file" && selectedFileId === node.id;
 
@@ -150,21 +152,11 @@ export default function TreeNode({
 
   useEffect(() => {
     return () => {
-      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
     };
   }, []);
-
-  useEffect(() => {
-    if (!hasChildren || !treeCommand) return;
-
-    if (treeCommand.type === "expand") {
-      setOpen(true);
-    }
-
-    if (treeCommand.type === "collapse") {
-      setOpen(false);
-    }
-  }, [treeCommand, hasChildren]);
 
   const clearLongPress = () => {
     if (longPressTimerRef.current) {
@@ -184,7 +176,9 @@ export default function TreeNode({
       return;
     }
 
-    if (hasChildren) setOpen((prev) => !prev);
+    if (hasChildren) {
+      setOpen((prev) => !prev);
+    }
   };
 
   const handleContextMenu = (event) => {
@@ -213,6 +207,7 @@ export default function TreeNode({
 
     longPressTimerRef.current = setTimeout(() => {
       longPressTriggeredRef.current = true;
+
       onFileContextMenu?.({
         file: node,
         x: touch.clientX,
@@ -230,11 +225,18 @@ export default function TreeNode({
     const dx = Math.abs(touch.clientX - touchStartRef.current.x);
     const dy = Math.abs(touch.clientY - touchStartRef.current.y);
 
-    if (dx > 10 || dy > 10) clearLongPress();
+    if (dx > 10 || dy > 10) {
+      clearLongPress();
+    }
   };
 
-  const handleTouchEnd = () => clearLongPress();
-  const handleTouchCancel = () => clearLongPress();
+  const handleTouchEnd = () => {
+    clearLongPress();
+  };
+
+  const handleTouchCancel = () => {
+    clearLongPress();
+  };
 
   const handleKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -242,8 +244,13 @@ export default function TreeNode({
       handleClick();
     }
 
-    if (event.key === "ArrowRight" && hasChildren && !open) setOpen(true);
-    if (event.key === "ArrowLeft" && hasChildren && open) setOpen(false);
+    if (event.key === "ArrowRight" && hasChildren && !open) {
+      setOpen(true);
+    }
+
+    if (event.key === "ArrowLeft" && hasChildren && open) {
+      setOpen(false);
+    }
   };
 
   return (
@@ -287,7 +294,7 @@ export default function TreeNode({
               onFileClick={onFileClick}
               onFileContextMenu={onFileContextMenu}
               selectedFileId={selectedFileId}
-              treeCommand={treeCommand}
+              treeMode={treeMode}
             />
           ))}
         </div>

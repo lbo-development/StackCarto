@@ -60,71 +60,35 @@ function BasemapOption({ type, label, active, onClick }) {
 }
 
 function BasemapSwitcher({ basemap, setBasemap }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-
-  useEffect(() => {
-    function handlePointerDown(event) {
-      if (!rootRef.current?.contains(event.target)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, []);
-
-  const currentImg = basemap === "road" ? roadImg : satelliteImg;
-  const currentLabel = basemap === "road" ? "Plan" : "Satellite";
+  const options = [
+    { key: "road", label: "Route", img: roadImg },
+    { key: "satellite", label: "Satellite", img: satelliteImg },
+  ];
 
   return (
-    <div ref={rootRef} className={`gm-switch ${open ? "open" : ""}`}>
-      <button
-        type="button"
-        className="gm-switch-main"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-label="Changer le fond de carte"
-        aria-expanded={open}
-      >
-        <img src={currentImg} alt="" className="gm-main-img" />
+    <div
+      className="basemap-dock"
+      role="group"
+      aria-label="Choix du fond de carte"
+    >
+      {options.map((option) => {
+        const active = basemap === option.key;
 
-        <div className="gm-switch-main-label">
-          <span>{currentLabel}</span>
-
-          <svg viewBox="0 0 20 20" className="gm-chevron" aria-hidden="true">
-            <path
-              d="M5 7.5l5 5 5-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-      </button>
-
-      <div className="gm-switch-menu" aria-hidden={!open}>
-        <BasemapOption
-          type="road"
-          label="Plan"
-          active={basemap === "road"}
-          onClick={() => {
-            setBasemap("road");
-            setOpen(false);
-          }}
-        />
-
-        <BasemapOption
-          type="satellite"
-          label="Satellite"
-          active={basemap === "satellite"}
-          onClick={() => {
-            setBasemap("satellite");
-            setOpen(false);
-          }}
-        />
-      </div>
+        return (
+          <button
+            key={option.key}
+            type="button"
+            className={`basemap-dock-item ${active ? "active" : ""}`}
+            onClick={() => setBasemap(option.key)}
+            aria-pressed={active}
+          >
+            <span className="basemap-dock-thumb-wrap">
+              <img src={option.img} alt="" className="basemap-dock-thumb" />
+            </span>
+            <span className="basemap-dock-label">{option.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -361,7 +325,6 @@ export default function MapLayout() {
   const handleFileClick = (fileNode) => {
     setSelectedFile(fileNode);
     setContextMenu(null);
-    console.log("Fichier sélectionné :", fileNode);
   };
 
   const handleFileContextMenu = ({ file, x, y }) => {
@@ -436,23 +399,74 @@ export default function MapLayout() {
           </div>
 
           <div className="sidebar-section">
-            <p className="section-label">Arborescence documentaire</p>
+            <div className="tree-section-header">
+              <p className="section-label tree-section-label">
+                Arborescence documentaire
+              </p>
 
-            <div className="tree-toolbar">
-              <button
-                type="button"
-                className="tree-toolbar-btn"
-                onClick={expandAll}
-              >
-                Tout déplier
-              </button>
-              <button
-                type="button"
-                className="tree-toolbar-btn"
-                onClick={collapseAll}
-              >
-                Tout replier
-              </button>
+              <div className="tree-toolbar">
+                <button
+                  type="button"
+                  className="tree-toolbar-icon-btn"
+                  onClick={expandAll}
+                  aria-label="Tout déplier"
+                >
+                  <svg
+                    viewBox="0 0 20 20"
+                    className="tree-toolbar-icon"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M6 5l4 4 4-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M6 10l4 4 4-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span className="tree-toolbar-tooltip">Tout déplier</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="tree-toolbar-icon-btn"
+                  onClick={collapseAll}
+                  aria-label="Tout replier"
+                >
+                  <svg
+                    viewBox="0 0 20 20"
+                    className="tree-toolbar-icon"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M7 6l4 4-4 4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M11 6l4 4-4 4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span className="tree-toolbar-tooltip">Tout replier</span>
+                </button>
+              </div>
             </div>
 
             <CartoTree

@@ -5,7 +5,7 @@ export default function CartoTree({
   onFileClick,
   onFileContextMenu,
   selectedFileId,
-  treeCommand,
+  treeMode = "default",
 }) {
   return (
     <div
@@ -21,7 +21,7 @@ export default function CartoTree({
           onFileClick={onFileClick}
           onFileContextMenu={onFileContextMenu}
           selectedFileId={selectedFileId}
-          treeCommand={treeCommand}
+          treeMode={treeMode}
         />
       ))}
     </div>
