@@ -751,3 +751,174 @@ button {
     font-size: 10px;
   }
 }
+/* =========================
+   Tree - Explorer Pro Windows
+   ========================= */
+
+.carto-tree {
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.carto-tree__body {
+  padding: 6px;
+}
+
+.carto-tree__empty,
+.carto-tree__state {
+  padding: 14px 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.carto-tree__state--error {
+  color: #b91c1c;
+}
+
+.tree-node {
+  width: 100%;
+}
+
+.tree-children {
+  width: 100%;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding-top: 2px;
+  padding-right: 8px;
+  padding-bottom: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  color: #1f2937;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.tree-row:hover {
+  background: #f3f6fb;
+}
+
+.tree-row:focus {
+  outline: none;
+  background: #eef4ff;
+  box-shadow: inset 0 0 0 1px #bfd7ff;
+}
+
+.tree-row.selected {
+  background: #cfe8ff;
+  box-shadow: inset 0 0 0 1px #9cc9ff;
+}
+
+.tree-row--service .tree-label,
+.tree-row--site .tree-label,
+.tree-row--installation .tree-label,
+.tree-row--folder .tree-label {
+  font-weight: 600;
+}
+
+.tree-caret {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.tree-caret:hover:not(:disabled) {
+  background: #e8eef8;
+  color: #334155;
+}
+
+.tree-caret:disabled {
+  cursor: default;
+  opacity: 0;
+}
+
+.tree-caret--empty {
+  pointer-events: none;
+}
+
+.tree-caret-svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.14s ease;
+}
+
+.tree-caret-svg.open {
+  transform: rotate(90deg);
+}
+
+.tree-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tree-svg-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.tree-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+/* Menu contextuel type Windows */
+
+.tree-context-menu,
+.file-context-menu {
+  position: fixed;
+  min-width: 220px;
+  background: #ffffff;
+  border: 1px solid #d6dbe4;
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  padding: 4px;
+  z-index: 3000;
+}
+
+.tree-context-menu-item {
+  width: 100%;
+  display: block;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: #1f2937;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tree-context-menu-item:hover {
+  background: #e9f2ff;
+}
+
+.tree-context-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: #e5e7eb;
+}
