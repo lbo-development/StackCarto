@@ -28,17 +28,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-const center = [43.2965, 5.3698];
+const CENTER = [43.2965, 5.3698];
+const DEFAULT_MAP_ZOOM = 13;
+const DEFAULT_FEATURE_ZOOM = 16;
 
 function ResizeMap({ menuOpen }) {
   const map = useMap();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       map.invalidateSize();
     }, 250);
 
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [map, menuOpen]);
 
   return null;
@@ -78,6 +80,56 @@ function BasemapSwitcher({ basemap, setBasemap }) {
   );
 }
 
+function SelectedMarker({ feature }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!feature?.geometry || feature.geometry.type !== "Point") return;
+
+    const coordinates = feature.geometry.coordinates;
+    if (!Array.isArray(coordinates) || coordinates.length < 2) return;
+
+    const [lng, lat] = coordinates;
+    const zoom =
+      Number.isFinite(feature.zoom) && feature.zoom > 0
+        ? feature.zoom
+        : DEFAULT_FEATURE_ZOOM;
+
+    map.flyTo([lat, lng], zoom, { duration: 0.8 });
+  }, [feature, map]);
+
+  if (!feature?.geometry || feature.geometry.type !== "Point") return null;
+
+  const coordinates = feature.geometry.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
+
+  const [lng, lat] = coordinates;
+
+  return (
+    <Marker key={`${feature.type}-${feature.id}`} position={[lat, lng]}>
+      <Popup>
+        {feature.type === "site" ? (
+          <div>
+            <strong>📍 Site</strong>
+            <div>{feature.nom}</div>
+            {feature.code ? <div>Code : {feature.code}</div> : null}
+          </div>
+        ) : feature.type === "service" ? (
+          <div>
+            <strong>🧩 Service</strong>
+            <div>{feature.nom}</div>
+            {feature.code ? <div>Code : {feature.code}</div> : null}
+          </div>
+        ) : (
+          <div>
+            <strong>{feature.nom}</strong>
+          </div>
+        )}
+      </Popup>
+    </Marker>
+  );
+}
+
 export default function MapLayout() {
   const [menuOpen, setMenuOpen] = useState(true);
   const [basemap, setBasemap] = useState("road");
@@ -88,12 +140,53 @@ export default function MapLayout() {
   const [treeData, setTreeData] = useState([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [treeError, setTreeError] = useState("");
+
   const [selectedNode, setSelectedNode] = useState(null);
+  const [selectedFeature, setSelectedFeature] = useState(null);
 
-  const toggleMenu = () => setMenuOpen((prev) => !prev);
-  const closeMenu = () => setMenuOpen(false);
+  const toggleMenu = useCallback(() => {
+    setMenuOpen((prev) => !prev);
+  }, []);
 
-  const loadTree = useCallback(async () => {
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      try {
+        setTreeLoading(true);
+        setTreeError("");
+
+        const data = await fetchCartoTree();
+
+        if (!cancelled) {
+          setTreeData(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error("Erreur chargement arborescence :", error);
+
+        if (!cancelled) {
+          setTreeError("Impossible de charger l'arborescence.");
+          setTreeData([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setTreeLoading(false);
+        }
+      }
+    }
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const reloadTree = useCallback(async () => {
     try {
       setTreeLoading(true);
       setTreeError("");
@@ -108,10 +201,6 @@ export default function MapLayout() {
       setTreeLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    loadTree();
-  }, [loadTree]);
 
   const basemapConfig = useMemo(() => {
     if (basemap === "satellite") {
@@ -133,29 +222,48 @@ export default function MapLayout() {
   const handleNodeClick = useCallback((node) => {
     setSelectedNode(node);
 
-    if (node.type === "document") {
-      console.log("Document sélectionné :", node.data);
+    const geometry = node?.data?.geometry;
+    const zoom = node?.data?.zoom;
+    const code =
+      node?.data?.code_site ??
+      node?.data?.code_service ??
+      node?.data?.code ??
+      null;
 
-      if (node.data?.path_file) {
-        window.open(node.data.path_file, "_blank", "noopener,noreferrer");
-      }
+    const isSelectablePoint =
+      (node?.type === "site" || node?.type === "service") &&
+      geometry?.type === "Point" &&
+      Array.isArray(geometry.coordinates) &&
+      geometry.coordinates.length >= 2;
+
+    if (isSelectablePoint) {
+      setSelectedFeature({
+        id: node.id,
+        type: node.type,
+        nom: node.label ?? "Sans nom",
+        code,
+        zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : DEFAULT_FEATURE_ZOOM,
+        geometry,
+      });
+      return;
     }
 
-    if (node.type === "plan") {
-      console.log("Plan sélectionné :", node.data);
-      // Brancher ici le chargement du plan sur la carte
+    setSelectedFeature(null);
+
+    if (node?.type === "document" && node?.data?.path_file) {
+      window.open(node.data.path_file, "_blank", "noopener,noreferrer");
     }
   }, []);
 
-  const expandAll = () => {
+  const expandAll = useCallback(() => {
     setTreeAction("expand");
     setTreeActionToken((v) => v + 1);
-  };
+  }, []);
 
-  const collapseAll = () => {
+  const collapseAll = useCallback(() => {
     setTreeAction("collapse");
     setTreeActionToken((v) => v + 1);
-  };
+  }, []);
 
   return (
     <div className={`app ${menuOpen ? "menu-open" : ""}`}>
@@ -287,7 +395,7 @@ export default function MapLayout() {
             ) : treeError ? (
               <div className="carto-tree__state carto-tree__state--error">
                 <div>{treeError}</div>
-                <button type="button" onClick={loadTree}>
+                <button type="button" onClick={reloadTree}>
                   Réessayer
                 </button>
               </div>
@@ -316,8 +424,8 @@ export default function MapLayout() {
           </div>
 
           <MapContainer
-            center={center}
-            zoom={13}
+            center={CENTER}
+            zoom={DEFAULT_MAP_ZOOM}
             className="map"
             zoomControl={false}
           >
@@ -330,9 +438,9 @@ export default function MapLayout() {
               url={basemapConfig.url}
             />
 
-            <Marker position={center}>
-              <Popup>Marseille</Popup>
-            </Marker>
+            {selectedFeature?.geometry?.type === "Point" && (
+              <SelectedMarker feature={selectedFeature} />
+            )}
           </MapContainer>
         </main>
       </div>
