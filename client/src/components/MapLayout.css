@@ -69,8 +69,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 14px;
+  gap: 16px;
+  padding: 0 16px;
   background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -87,11 +87,27 @@ button {
 }
 
 .topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.topbar-logo {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.topbar-brand-text {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
 .topbar-subtitle {
-  margin: 0 0 2px;
+  margin: 2px 0 0;
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
@@ -102,7 +118,7 @@ button {
 .topbar-title {
   margin: 0;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -110,19 +126,27 @@ button {
 }
 
 .topbar-action {
-  border: 1px solid var(--border);
-  background: #fff;
   border-radius: var(--radius);
   height: 40px;
   padding: 0 14px;
   cursor: pointer;
   font-weight: 500;
-  transition: background var(--transition), border-color var(--transition);
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition);
 }
 
-.topbar-action:hover {
+.topbar-action--subtle {
+  border: 1px solid #dbe3ee;
   background: #f8fafc;
+  color: #475569;
+}
+
+.topbar-action--subtle:hover {
+  background: #f1f5f9;
   border-color: #cbd5e1;
+  color: #334155;
 }
 
 .hamburger {
@@ -679,6 +703,10 @@ button {
     bottom: 10px;
   }
 
+  .topbar-logo {
+    height: 38px;
+  }
+
   .topbar-title {
     font-size: 16px;
   }
@@ -963,3 +991,147 @@ button {
   flex: 1 1 auto;
   min-height: 0;
 }
+/* =========================
+   TREE VIEW (Arborescence)
+   ========================= */
+
+.tree-node {
+  font-size: 13px;
+}
+
+.tree-node-row {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding-right: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.tree-node-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.tree-node-row.selected {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+/* Chevron */
+.tree-node-chevron {
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #4b5563;
+  flex-shrink: 0;
+}
+
+.tree-node-chevron.empty {
+  cursor: default;
+}
+
+/* Icône */
+.tree-node-icon-wrapper {
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Label */
+.tree-node-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Couleurs par type */
+.icon-service {
+  color: #374151;
+}
+
+.icon-site {
+  color: #2563eb;
+}
+
+.icon-installation {
+  color: #d97706;
+}
+
+.icon-plan {
+  color: #7c3aed;
+}
+
+.icon-document {
+  color: #059669;
+}
+
+.icon-default {
+  color: #6b7280;
+}
+.tree-node-type-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.tree-node-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tree-node-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.tree-node-row.selected {
+  background: rgba(64, 128, 255, 0.18);
+}
+
+.tree-node-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tree-node-chevron {
+  display: inline-block;
+  font-size: 12px;
+  transform: rotate(0deg);
+  transition: transform 0.15s ease;
+}
+
+.tree-node-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.tree-node-chevron--empty {
+  width: 12px;
+}
+
+.tree-node-icon {
+  width: 20px;
+  text-align: center;
+  flex: 0 0 20px;
+}
+

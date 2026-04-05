@@ -96,43 +96,39 @@ function BasemapSwitcher({ basemap, setBasemap }) {
 function SelectedMarker({ feature }) {
   const map = useMap();
 
-  const markerPosition = useMemo(() => {
-    if (feature?.geometry?.type === "Point") {
-      const coordinates = feature.geometry.coordinates;
-      if (Array.isArray(coordinates) && coordinates.length >= 2) {
-        const [lng, lat] = coordinates;
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          return [lat, lng];
-        }
-      }
-    }
+  let lat = null;
+  let lng = null;
 
-    if (
-      feature?.center &&
-      Number.isFinite(feature.center.lat) &&
-      Number.isFinite(feature.center.lng)
-    ) {
-      return [feature.center.lat, feature.center.lng];
-    }
-
-    return null;
-  }, [feature]);
+  if (
+    feature?.geometry?.type === "Point" &&
+    Array.isArray(feature.geometry.coordinates) &&
+    feature.geometry.coordinates.length >= 2
+  ) {
+    [lng, lat] = feature.geometry.coordinates;
+  } else if (
+    feature?.center &&
+    Number.isFinite(feature.center.lat) &&
+    Number.isFinite(feature.center.lng)
+  ) {
+    lat = feature.center.lat;
+    lng = feature.center.lng;
+  }
 
   useEffect(() => {
-    if (!markerPosition) return;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
     const zoom =
       Number.isFinite(feature?.zoom) && feature.zoom > 0
         ? feature.zoom
         : DEFAULT_FEATURE_ZOOM;
 
-    map.flyTo(markerPosition, zoom, { duration: 0.8 });
-  }, [feature, map, markerPosition]);
+    map.flyTo([lat, lng], zoom, { duration: 0.8 });
+  }, [feature, lat, lng, map]);
 
-  if (!markerPosition) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
   return (
-    <Marker key={`${feature.type}-${feature.id}`} position={markerPosition}>
+    <Marker key={`${feature.type}-${feature.id}`} position={[lat, lng]}>
       <Popup>
         {feature.type === "site" ? (
           <div>
@@ -180,7 +176,6 @@ export default function MapLayout() {
 
   const [viewMode, setViewMode] = useState("map");
   const [activePlan, setActivePlan] = useState(null);
-  const [planError, setPlanError] = useState("");
 
   const toggleMenu = useCallback(() => {
     setMenuOpen((prev) => !prev);
@@ -259,7 +254,6 @@ export default function MapLayout() {
 
   const closePlan = useCallback(() => {
     setActivePlan(null);
-    setPlanError("");
     setViewMode("map");
   }, []);
 
@@ -268,13 +262,10 @@ export default function MapLayout() {
 
     if (!rawPath) {
       console.error("Aucun path_file trouvé pour le plan :", node);
-      setPlanError("Le plan sélectionné n'a pas de chemin de fichier.");
       return;
     }
 
     try {
-      setPlanError("");
-
       const { data } = supabase.storage.from(PLAN_BUCKET).getPublicUrl(rawPath);
 
       setActivePlan({
@@ -298,9 +289,6 @@ export default function MapLayout() {
       setViewMode("plan");
     } catch (error) {
       console.error("Erreur ouverture plan :", error);
-      setPlanError(`Impossible d'ouvrir le plan : ${error.message || error}`);
-      setActivePlan(null);
-      setViewMode("plan");
     }
   }, []);
 
@@ -317,9 +305,7 @@ export default function MapLayout() {
       mapRef.current.flyTo(
         [center.lat, center.lng],
         Number(zoom) || DEFAULT_FEATURE_ZOOM,
-        {
-          duration: 0.8,
-        },
+        { duration: 0.8 },
       );
     }
   }, []);
@@ -331,6 +317,11 @@ export default function MapLayout() {
       const nodeType = node?.type ?? node?.data?.type ?? null;
       const category =
         node?.data?.categorie_file ?? node?.categorie_file ?? null;
+
+      if (nodeType === "folder") {
+        setSelectedFeature(null);
+        return;
+      }
 
       const isPlan = nodeType === "plan" || category === "plan";
       if (isPlan) {
@@ -353,11 +344,6 @@ export default function MapLayout() {
         node?.code ??
         null;
 
-      const isEntityNode =
-        nodeType === "site" ||
-        nodeType === "service" ||
-        nodeType === "installation";
-
       const hasPointGeometry =
         geometry?.type === "Point" &&
         Array.isArray(geometry.coordinates) &&
@@ -366,17 +352,39 @@ export default function MapLayout() {
       const hasCenter =
         center && Number.isFinite(center.lat) && Number.isFinite(center.lng);
 
-      if (isEntityNode && (hasPointGeometry || hasCenter)) {
-        setSelectedFeature({
-          id: node.id,
-          type: nodeType,
-          nom: node.label ?? "Sans nom",
-          code,
-          zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : DEFAULT_FEATURE_ZOOM,
-          geometry: hasPointGeometry ? geometry : null,
-          center: hasCenter ? center : null,
-        });
-        return;
+      if (
+        nodeType === "site" ||
+        nodeType === "service" ||
+        nodeType === "installation"
+      ) {
+        if (hasPointGeometry) {
+          setSelectedFeature({
+            id: node.id,
+            type: nodeType,
+            nom: node.label ?? "Sans nom",
+            code,
+            zoom:
+              Number.isFinite(zoom) && zoom > 0 ? zoom : DEFAULT_FEATURE_ZOOM,
+            geometry,
+            center: null,
+          });
+          return;
+        }
+
+        if (hasCenter) {
+          setSelectedFeature({
+            id: node.id,
+            type: nodeType,
+            nom: node.label ?? "Sans nom",
+            code,
+            zoom:
+              Number.isFinite(zoom) && zoom > 0 ? zoom : DEFAULT_FEATURE_ZOOM,
+            geometry: null,
+            center,
+          });
+          flyToNodeCenter(node);
+          return;
+        }
       }
 
       setSelectedFeature(null);
@@ -424,12 +432,20 @@ export default function MapLayout() {
           </button>
 
           <div className="topbar-brand">
-            <p className="topbar-subtitle">Navigation cartographique</p>
-            <h1 className="topbar-title">Tableau de bord cartographique</h1>
+            <img
+              src="/DIgitalBonsai.png"
+              alt="Digital Bonsai"
+              className="topbar-logo"
+            />
+
+            <div className="topbar-brand-text">
+              <h1 className="topbar-title">Tableau de bord cartographique</h1>
+              <p className="topbar-subtitle">Navigation cartographique</p>
+            </div>
           </div>
         </div>
 
-        <button type="button" className="topbar-action">
+        <button type="button" className="topbar-action topbar-action--subtle">
           Connexion
         </button>
       </header>
@@ -604,18 +620,7 @@ export default function MapLayout() {
               </div>
 
               <div className="plan-canvas">
-                {planError ? (
-                  <div className="carto-tree__state carto-tree__state--error">
-                    <div>{planError}</div>
-                    {activePlan?.url ? (
-                      <a href={activePlan.url} target="_blank" rel="noreferrer">
-                        Ouvrir le plan dans un nouvel onglet
-                      </a>
-                    ) : null}
-                  </div>
-                ) : (
-                  <PlanViewer plan={activePlan} menuOpen={menuOpen} />
-                )}
+                <PlanViewer plan={activePlan} menuOpen={menuOpen} />
               </div>
             </div>
           )}
