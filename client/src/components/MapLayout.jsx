@@ -120,6 +120,12 @@ function SelectedMarker({ feature }) {
             <div>{feature.nom}</div>
             {feature.code ? <div>Code : {feature.code}</div> : null}
           </div>
+        ) : feature.type === "installation" ? (
+          <div>
+            <strong>🏗️ Installation</strong>
+            <div>{feature.nom}</div>
+            {feature.code ? <div>Code : {feature.code}</div> : null}
+          </div>
         ) : (
           <div>
             <strong>{feature.nom}</strong>
@@ -227,11 +233,14 @@ export default function MapLayout() {
     const code =
       node?.data?.code_site ??
       node?.data?.code_service ??
+      node?.data?.code_installation ??
       node?.data?.code ??
       null;
 
     const isSelectablePoint =
-      (node?.type === "site" || node?.type === "service") &&
+      (node?.type === "site" ||
+        node?.type === "service" ||
+        node?.type === "installation") &&
       geometry?.type === "Point" &&
       Array.isArray(geometry.coordinates) &&
       geometry.coordinates.length >= 2;
