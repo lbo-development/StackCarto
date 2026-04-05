@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   Marker,
@@ -18,7 +18,9 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import roadImg from "../assets/map-road.png";
 import satelliteImg from "../assets/map-satellite.png";
 import CartoTree from "./CartoTree";
+import PlanViewer from "./PlanViewer";
 import { fetchCartoTree } from "../lib/cartoApi";
+import { supabase } from "../lib/supabase";
 
 delete L.Icon.Default.prototype._getIconUrl;
 
@@ -31,6 +33,7 @@ L.Icon.Default.mergeOptions({
 const CENTER = [43.2965, 5.3698];
 const DEFAULT_MAP_ZOOM = 13;
 const DEFAULT_FEATURE_ZOOM = 16;
+const PLAN_BUCKET = "documents_services";
 
 function ResizeMap({ menuOpen }) {
   const map = useMap();
@@ -42,6 +45,16 @@ function ResizeMap({ menuOpen }) {
 
     return () => window.clearTimeout(timer);
   }, [map, menuOpen]);
+
+  return null;
+}
+
+function MapInstanceCapture({ mapRef }) {
+  const map = useMap();
+
+  useEffect(() => {
+    mapRef.current = map;
+  }, [map, mapRef]);
 
   return null;
 }
@@ -83,30 +96,43 @@ function BasemapSwitcher({ basemap, setBasemap }) {
 function SelectedMarker({ feature }) {
   const map = useMap();
 
+  const markerPosition = useMemo(() => {
+    if (feature?.geometry?.type === "Point") {
+      const coordinates = feature.geometry.coordinates;
+      if (Array.isArray(coordinates) && coordinates.length >= 2) {
+        const [lng, lat] = coordinates;
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          return [lat, lng];
+        }
+      }
+    }
+
+    if (
+      feature?.center &&
+      Number.isFinite(feature.center.lat) &&
+      Number.isFinite(feature.center.lng)
+    ) {
+      return [feature.center.lat, feature.center.lng];
+    }
+
+    return null;
+  }, [feature]);
+
   useEffect(() => {
-    if (!feature?.geometry || feature.geometry.type !== "Point") return;
+    if (!markerPosition) return;
 
-    const coordinates = feature.geometry.coordinates;
-    if (!Array.isArray(coordinates) || coordinates.length < 2) return;
-
-    const [lng, lat] = coordinates;
     const zoom =
-      Number.isFinite(feature.zoom) && feature.zoom > 0
+      Number.isFinite(feature?.zoom) && feature.zoom > 0
         ? feature.zoom
         : DEFAULT_FEATURE_ZOOM;
 
-    map.flyTo([lat, lng], zoom, { duration: 0.8 });
-  }, [feature, map]);
+    map.flyTo(markerPosition, zoom, { duration: 0.8 });
+  }, [feature, map, markerPosition]);
 
-  if (!feature?.geometry || feature.geometry.type !== "Point") return null;
-
-  const coordinates = feature.geometry.coordinates;
-  if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
-
-  const [lng, lat] = coordinates;
+  if (!markerPosition) return null;
 
   return (
-    <Marker key={`${feature.type}-${feature.id}`} position={[lat, lng]}>
+    <Marker key={`${feature.type}-${feature.id}`} position={markerPosition}>
       <Popup>
         {feature.type === "site" ? (
           <div>
@@ -137,6 +163,8 @@ function SelectedMarker({ feature }) {
 }
 
 export default function MapLayout() {
+  const mapRef = useRef(null);
+
   const [menuOpen, setMenuOpen] = useState(true);
   const [basemap, setBasemap] = useState("road");
 
@@ -149,6 +177,10 @@ export default function MapLayout() {
 
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedFeature, setSelectedFeature] = useState(null);
+
+  const [viewMode, setViewMode] = useState("map");
+  const [activePlan, setActivePlan] = useState(null);
+  const [planError, setPlanError] = useState("");
 
   const toggleMenu = useCallback(() => {
     setMenuOpen((prev) => !prev);
@@ -225,44 +257,144 @@ export default function MapLayout() {
     };
   }, [basemap]);
 
-  const handleNodeClick = useCallback((node) => {
-    setSelectedNode(node);
+  const closePlan = useCallback(() => {
+    setActivePlan(null);
+    setPlanError("");
+    setViewMode("map");
+  }, []);
 
-    const geometry = node?.data?.geometry;
-    const zoom = node?.data?.zoom;
-    const code =
-      node?.data?.code_site ??
-      node?.data?.code_service ??
-      node?.data?.code_installation ??
-      node?.data?.code ??
-      null;
+  const openPlan = useCallback(async (node) => {
+    const rawPath = node?.data?.path_file ?? node?.path_file ?? null;
 
-    const isSelectablePoint =
-      (node?.type === "site" ||
-        node?.type === "service" ||
-        node?.type === "installation") &&
-      geometry?.type === "Point" &&
-      Array.isArray(geometry.coordinates) &&
-      geometry.coordinates.length >= 2;
-
-    if (isSelectablePoint) {
-      setSelectedFeature({
-        id: node.id,
-        type: node.type,
-        nom: node.label ?? "Sans nom",
-        code,
-        zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : DEFAULT_FEATURE_ZOOM,
-        geometry,
-      });
+    if (!rawPath) {
+      console.error("Aucun path_file trouvé pour le plan :", node);
+      setPlanError("Le plan sélectionné n'a pas de chemin de fichier.");
       return;
     }
 
-    setSelectedFeature(null);
+    try {
+      setPlanError("");
 
-    if (node?.type === "document" && node?.data?.path_file) {
-      window.open(node.data.path_file, "_blank", "noopener,noreferrer");
+      const { data } = supabase.storage.from(PLAN_BUCKET).getPublicUrl(rawPath);
+
+      setActivePlan({
+        id: node?.data?.fileId ?? node?.fileId ?? node?.id,
+        title:
+          node?.label ??
+          node?.data?.lib_file ??
+          node?.data?.name_file ??
+          node?.name_file ??
+          "Plan",
+        url: data?.publicUrl,
+        path_file: rawPath,
+        name_file: node?.data?.name_file ?? node?.name_file ?? null,
+        mime_type: node?.data?.mime_type ?? node?.mime_type ?? null,
+        svg_width: node?.data?.svg_width ?? node?.svg_width ?? null,
+        svg_height: node?.data?.svg_height ?? node?.svg_height ?? null,
+        svg_viewbox: node?.data?.svg_viewbox ?? node?.svg_viewbox ?? null,
+      });
+
+      setSelectedFeature(null);
+      setViewMode("plan");
+    } catch (error) {
+      console.error("Erreur ouverture plan :", error);
+      setPlanError(`Impossible d'ouvrir le plan : ${error.message || error}`);
+      setActivePlan(null);
+      setViewMode("plan");
     }
   }, []);
+
+  const flyToNodeCenter = useCallback((node) => {
+    const center = node?.center ?? node?.data?.center ?? null;
+    const zoom = node?.zoom ?? node?.data?.zoom ?? DEFAULT_FEATURE_ZOOM;
+
+    if (
+      mapRef.current &&
+      center &&
+      Number.isFinite(center.lat) &&
+      Number.isFinite(center.lng)
+    ) {
+      mapRef.current.flyTo(
+        [center.lat, center.lng],
+        Number(zoom) || DEFAULT_FEATURE_ZOOM,
+        {
+          duration: 0.8,
+        },
+      );
+    }
+  }, []);
+
+  const handleNodeClick = useCallback(
+    async (node) => {
+      setSelectedNode(node);
+
+      const nodeType = node?.type ?? node?.data?.type ?? null;
+      const category =
+        node?.data?.categorie_file ?? node?.categorie_file ?? null;
+
+      const isPlan = nodeType === "plan" || category === "plan";
+      if (isPlan) {
+        await openPlan(node);
+        return;
+      }
+
+      if (viewMode === "plan") {
+        closePlan();
+      }
+
+      const geometry = node?.data?.geometry ?? node?.geometry ?? null;
+      const center = node?.center ?? node?.data?.center ?? null;
+      const zoom = node?.data?.zoom ?? node?.zoom;
+      const code =
+        node?.data?.code_site ??
+        node?.data?.code_service ??
+        node?.data?.code_installation ??
+        node?.data?.code ??
+        node?.code ??
+        null;
+
+      const isEntityNode =
+        nodeType === "site" ||
+        nodeType === "service" ||
+        nodeType === "installation";
+
+      const hasPointGeometry =
+        geometry?.type === "Point" &&
+        Array.isArray(geometry.coordinates) &&
+        geometry.coordinates.length >= 2;
+
+      const hasCenter =
+        center && Number.isFinite(center.lat) && Number.isFinite(center.lng);
+
+      if (isEntityNode && (hasPointGeometry || hasCenter)) {
+        setSelectedFeature({
+          id: node.id,
+          type: nodeType,
+          nom: node.label ?? "Sans nom",
+          code,
+          zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : DEFAULT_FEATURE_ZOOM,
+          geometry: hasPointGeometry ? geometry : null,
+          center: hasCenter ? center : null,
+        });
+        return;
+      }
+
+      setSelectedFeature(null);
+      flyToNodeCenter(node);
+
+      if (
+        nodeType === "document" &&
+        (node?.data?.path_file || node?.path_file)
+      ) {
+        window.open(
+          node?.data?.path_file ?? node?.path_file,
+          "_blank",
+          "noopener,noreferrer",
+        );
+      }
+    },
+    [closePlan, flyToNodeCenter, openPlan, viewMode],
+  );
 
   const expandAll = useCallback(() => {
     setTreeAction("expand");
@@ -428,29 +560,65 @@ export default function MapLayout() {
         />
 
         <main className="map-shell">
-          <div className="map-hover-ui">
-            <BasemapSwitcher basemap={basemap} setBasemap={setBasemap} />
-          </div>
+          {viewMode === "map" ? (
+            <>
+              <div className="map-hover-ui">
+                <BasemapSwitcher basemap={basemap} setBasemap={setBasemap} />
+              </div>
 
-          <MapContainer
-            center={CENTER}
-            zoom={DEFAULT_MAP_ZOOM}
-            className="map"
-            zoomControl={false}
-          >
-            <ResizeMap menuOpen={menuOpen} />
-            <ZoomControl position="bottomright" />
+              <MapContainer
+                center={CENTER}
+                zoom={DEFAULT_MAP_ZOOM}
+                className="map"
+                zoomControl={false}
+              >
+                <MapInstanceCapture mapRef={mapRef} />
+                <ResizeMap menuOpen={menuOpen} />
+                <ZoomControl position="bottomright" />
 
-            <TileLayer
-              key={basemapConfig.key}
-              attribution={basemapConfig.attribution}
-              url={basemapConfig.url}
-            />
+                <TileLayer
+                  key={basemapConfig.key}
+                  attribution={basemapConfig.attribution}
+                  url={basemapConfig.url}
+                />
 
-            {selectedFeature?.geometry?.type === "Point" && (
-              <SelectedMarker feature={selectedFeature} />
-            )}
-          </MapContainer>
+                {selectedFeature && (
+                  <SelectedMarker feature={selectedFeature} />
+                )}
+              </MapContainer>
+            </>
+          ) : (
+            <div className="plan-mode-wrapper">
+              <div className="plan-toolbar">
+                <button
+                  type="button"
+                  className="plan-toolbar-back-btn"
+                  onClick={closePlan}
+                >
+                  ← Retour carte
+                </button>
+
+                <div className="plan-toolbar-title">
+                  {activePlan?.title ?? "Plan"}
+                </div>
+              </div>
+
+              <div className="plan-canvas">
+                {planError ? (
+                  <div className="carto-tree__state carto-tree__state--error">
+                    <div>{planError}</div>
+                    {activePlan?.url ? (
+                      <a href={activePlan.url} target="_blank" rel="noreferrer">
+                        Ouvrir le plan dans un nouvel onglet
+                      </a>
+                    ) : null}
+                  </div>
+                ) : (
+                  <PlanViewer plan={activePlan} menuOpen={menuOpen} />
+                )}
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
