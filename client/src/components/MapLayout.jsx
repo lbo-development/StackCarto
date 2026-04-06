@@ -536,7 +536,7 @@ export default function MapLayout({
         <div className="topbar-center">
           <h1 className="topbar-title topbar-title--center">SPADIA</h1>
           <p className="topbar-subtitle topbar-subtitle--center">
-            L'informatique technique au coeur de nos installations
+            L'informatique technique au coeur de vos installations
           </p>
         </div>
 
