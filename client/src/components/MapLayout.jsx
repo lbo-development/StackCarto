@@ -431,18 +431,124 @@ export default function MapLayout() {
             <span />
           </button>
 
-          <div className="topbar-brand">
+          <div className="topbar-brand topbar-brand--has-card">
             <img
               src="/DIgitalBonsai.png"
               alt="Digital Bonsai"
               className="topbar-logo"
             />
 
-            <div className="topbar-brand-text">
-              <h1 className="topbar-title">Tableau de bord cartographique</h1>
-              <p className="topbar-subtitle">Navigation cartographique</p>
+            <div className="logo-hover-card" role="tooltip" aria-hidden="true">
+              <div className="business-card">
+                <div className="business-card__main">
+                  <div className="business-card__left">
+                    <img
+                      src="/DIgitalBonsai.png"
+                      alt="Digital Bonsai"
+                      className="business-card__logo"
+                    />
+                  </div>
+
+                  <div className="business-card__right">
+                    <h3 className="business-card__name">Laurent BOHBOT</h3>
+                    <p className="business-card__role">
+                      Automation & Digital Transformation Expert
+                    </p>
+
+                    <div className="business-card__contacts">
+                      <div className="business-card__contact">
+                        <span className="business-card__icon icon-solid">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="white"
+                            aria-hidden="true"
+                          >
+                            <path d="M6.6 10.8a15 15 0 006.6 6.6l2.2-2.2a1 1 0 011-.24 11.4 11.4 0 003.6.6 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 5a1 1 0 011-1h2.4a1 1 0 011 1 11.4 11.4 0 00.6 3.6 1 1 0 01-.24 1z" />
+                          </svg>
+                        </span>
+                        <span className="business-card__text">
+                          +33 7 69 86 26 64
+                        </span>
+                      </div>
+
+                      <div className="business-card__contact">
+                        <span className="business-card__icon icon-solid">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <rect
+                              x="4"
+                              y="6"
+                              width="16"
+                              height="12"
+                              rx="1.5"
+                              fill="white"
+                            />
+                            <path
+                              d="M5.5 7.5 12 12.5l6.5-5"
+                              stroke="#16835d"
+                              strokeWidth="1.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                        <span className="business-card__text">
+                          laurent.bohbot@digitalbonsai.tech
+                        </span>
+                      </div>
+
+                      <div className="business-card__contact">
+                        <span className="business-card__icon icon-web">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="9"
+                              stroke="#16835d"
+                              strokeWidth="1.6"
+                            />
+                            <path
+                              d="M3.8 12h16.4M12 3.2c2.4 2.3 3.8 5.4 3.8 8.8 0 3.4-1.4 6.5-3.8 8.8m0-17.6C9.6 5.5 8.2 8.6 8.2 12c0 3.4 1.4 6.5 3.8 8.8"
+                              stroke="#16835d"
+                              strokeWidth="1.4"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </span>
+                        <span className="business-card__text">
+                          www.digitalbonsai.tech
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="business-card__footer">
+                  Votre partenaire de voyage à travers l’univers du digital
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+
+        <div className="topbar-center">
+          <h1 className="topbar-title topbar-title--center">SPADIA</h1>
+          <p className="topbar-subtitle topbar-subtitle--center">
+            L'informatique technique au coeur de nos installations
+          </p>
         </div>
 
         <button type="button" className="topbar-action topbar-action--subtle">
