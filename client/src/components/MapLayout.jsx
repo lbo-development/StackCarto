@@ -542,26 +542,30 @@ export default function MapLayout({
 
         <div className="header-auth">
           {session ? (
-            <>
+            <div className="header-user-badge">
+              <span className="header-user-icon">👤</span>
               <span className="header-user-name">
                 {profile?.full_name || profile?.email || "Utilisateur"}
               </span>
 
               <button
                 type="button"
-                className="topbar-action topbar-action--subtle"
+                className="header-logout-btn"
                 onClick={onLogout}
+                title="Se déconnecter"
               >
-                Déconnexion
+                ⎋
               </button>
-            </>
+            </div>
           ) : (
             <button
               type="button"
-              className="topbar-action topbar-action--subtle"
+              className="header-login-btn"
               onClick={onLoginClick}
+              title="Connexion"
             >
-              Connexion
+              <span className="header-login-btn__icon">🔐</span>
+              <span className="header-login-btn__text">Connexion</span>
             </button>
           )}
         </div>

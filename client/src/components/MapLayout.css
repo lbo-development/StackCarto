@@ -1377,3 +1377,123 @@ button {
   font-weight: 600;
   color: #2E7D32;
 }
+/* =========================
+   HEADER AUTH (connexion)
+   ========================= */
+
+.header-auth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Bouton connexion */
+.header-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(34, 197, 94, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.header-login-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(34, 197, 94, 0.3);
+}
+
+/* Icône seule (mobile) */
+.header-login-btn__icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Texte */
+.header-login-btn__text {
+  display: inline;
+}
+
+/* Badge utilisateur */
+.header-user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 200px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.header-user-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =========================
+   RESPONSIVE FIX MOBILE
+   ========================= */
+
+@media (max-width: 768px) {
+
+  /* IMPORTANT : on ne masque plus le bouton */
+  .header-auth {
+    display: flex !important;
+  }
+
+  /* Bouton plus compact */
+  .header-login-btn {
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 8px;
+  }
+
+  /* On cache seulement le texte */
+  .header-login-btn__text {
+    display: none;
+  }
+
+  .header-login-btn__icon {
+    font-size: 18px;
+  }
+
+  /* Badge user compact */
+  .header-user-badge {
+    height: 36px;
+    padding: 0 8px;
+    max-width: 120px;
+    font-size: 12px;
+  }
+}
+
+/* Très petit écran */
+@media (max-width: 420px) {
+
+  .header-login-btn {
+    width: 36px;
+    padding: 0;
+  }
+
+  .header-login-btn__icon {
+    font-size: 18px;
+  }
+
+  .header-user-badge {
+    max-width: 90px;
+  }
+}

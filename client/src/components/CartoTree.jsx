@@ -30,15 +30,19 @@ export default function CartoTree({
   const [expandedKeys, setExpandedKeys] = useState(new Set());
 
   useEffect(() => {
-    if (treeAction === "expand") {
-      setExpandedKeys(collectExpandableKeys(treeData, new Set()));
-      return;
-    }
+    if (!treeActionToken) return;
 
-    if (treeAction === "collapse") {
-      setExpandedKeys(new Set());
-    }
-  }, [treeAction, treeActionToken, treeData]);
+    const nextExpanded =
+      treeAction === "expand"
+        ? collectExpandableKeys(treeData, new Set())
+        : new Set();
+
+    const timer = window.setTimeout(() => {
+      setExpandedKeys(nextExpanded);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [treeActionToken, treeAction, treeData]);
 
   const handleToggle = (nodeKey) => {
     if (!nodeKey) return;
