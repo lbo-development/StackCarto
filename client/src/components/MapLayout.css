@@ -1355,3 +1355,25 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.header-auth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+.header-auth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2E7D32;
+}

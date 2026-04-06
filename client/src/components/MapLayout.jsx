@@ -158,7 +158,12 @@ function SelectedMarker({ feature }) {
   );
 }
 
-export default function MapLayout() {
+export default function MapLayout({
+  session,
+  profile,
+  onLoginClick,
+  onLogout,
+}) {
   const mapRef = useRef(null);
 
   const [menuOpen, setMenuOpen] = useState(true);
@@ -185,41 +190,14 @@ export default function MapLayout() {
     setMenuOpen(false);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function run() {
-      try {
-        setTreeLoading(true);
-        setTreeError("");
-
-        const data = await fetchCartoTree();
-
-        if (!cancelled) {
-          setTreeData(Array.isArray(data) ? data : []);
-        }
-      } catch (error) {
-        console.error("Erreur chargement arborescence :", error);
-
-        if (!cancelled) {
-          setTreeError("Impossible de charger l'arborescence.");
-          setTreeData([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setTreeLoading(false);
-        }
-      }
+  const reloadTree = useCallback(async () => {
+    if (!session) {
+      setTreeData([]);
+      setTreeLoading(false);
+      setTreeError("");
+      return;
     }
 
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const reloadTree = useCallback(async () => {
     try {
       setTreeLoading(true);
       setTreeError("");
@@ -233,7 +211,18 @@ export default function MapLayout() {
     } finally {
       setTreeLoading(false);
     }
-  }, []);
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      setTreeData([]);
+      setTreeLoading(false);
+      setTreeError("");
+      return;
+    }
+
+    reloadTree();
+  }, [session, reloadTree]);
 
   const basemapConfig = useMemo(() => {
     if (basemap === "satellite") {
@@ -551,9 +540,31 @@ export default function MapLayout() {
           </p>
         </div>
 
-        <button type="button" className="topbar-action topbar-action--subtle">
-          Connexion
-        </button>
+        <div className="header-auth">
+          {session ? (
+            <>
+              <span className="header-user-name">
+                {profile?.full_name || profile?.email || "Utilisateur"}
+              </span>
+
+              <button
+                type="button"
+                className="topbar-action topbar-action--subtle"
+                onClick={onLogout}
+              >
+                Déconnexion
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="topbar-action topbar-action--subtle"
+              onClick={onLoginClick}
+            >
+              Connexion
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="layout">
@@ -653,7 +664,11 @@ export default function MapLayout() {
               </div>
             </div>
 
-            {treeLoading ? (
+            {!session ? (
+              <div className="carto-tree__state">
+                Connectez-vous pour afficher l’arborescence.
+              </div>
+            ) : treeLoading ? (
               <div className="carto-tree__state">Chargement...</div>
             ) : treeError ? (
               <div className="carto-tree__state carto-tree__state--error">
