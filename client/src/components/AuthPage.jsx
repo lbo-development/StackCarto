@@ -25,7 +25,7 @@ export default function AuthPage({ onClose }) {
     if (loading) {
       return mode === "signin" ? "Connexion..." : "Création...";
     }
-    return mode === "signin" ? "Se connecter" : "Créer le compte";
+    return mode === "signin" ? "Se connecter" : "Créer un compte";
   }, [loading, mode]);
 
   useEffect(() => {
