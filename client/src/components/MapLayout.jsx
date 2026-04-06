@@ -35,7 +35,7 @@ const DEFAULT_MAP_ZOOM = 13;
 const DEFAULT_FEATURE_ZOOM = 16;
 const PLAN_BUCKET = "documents_services";
 
-function ResizeMap({ menuOpen }) {
+function ResizeMap({ menuOpen, selectedFeature }) {
   const map = useMap();
 
   useEffect(() => {
@@ -44,7 +44,7 @@ function ResizeMap({ menuOpen }) {
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [map, menuOpen]);
+  }, [map, menuOpen, selectedFeature]);
 
   return null;
 }
@@ -585,7 +585,7 @@ export default function MapLayout() {
           <div className="sidebar-section">
             <div className="tree-section-header">
               <p className="section-label tree-section-label">
-                Arborescence documentaire
+                Base documentaire spatiale
               </p>
 
               <div className="tree-toolbar">
@@ -695,7 +695,10 @@ export default function MapLayout() {
                 zoomControl={false}
               >
                 <MapInstanceCapture mapRef={mapRef} />
-                <ResizeMap menuOpen={menuOpen} />
+                <ResizeMap
+                  menuOpen={menuOpen}
+                  selectedFeature={selectedFeature}
+                />
                 <ZoomControl position="bottomright" />
 
                 <TileLayer

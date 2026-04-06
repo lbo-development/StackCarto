@@ -117,7 +117,7 @@ button {
 
 .topbar-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -507,6 +507,7 @@ button {
   background: rgba(15, 23, 42, 0.18);
   opacity: 0;
   visibility: hidden;
+  pointer-events: none; 
   transition: opacity var(--transition), visibility var(--transition);
 }
 
@@ -733,7 +734,7 @@ button {
   .map-hover-ui {
     opacity: 1;
     transform: translateY(0) scale(1);
-    pointer-events: auto;
+    pointer-events: none;
   }
 
   .basemap-dock {
