@@ -34,3 +34,28 @@ export async function fetchCartoTree() {
   const data = await response.json();
   return Array.isArray(data) ? data : [];
 }
+export async function fetchLayers(type, id) {
+  const url = `${API_BASE_URL}/api/map-layers?type=${type}&id=${id}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Erreur HTTP ${response.status} - ${text}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchLayerObjects(id_calque) {
+  const url = `${API_BASE_URL}/api/map-layer-objects?id_calque=${id_calque}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Erreur HTTP ${response.status} - ${text}`);
+  }
+
+  return response.json();
+}

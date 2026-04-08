@@ -35,6 +35,22 @@ const DEFAULT_MAP_ZOOM = 13;
 const DEFAULT_FEATURE_ZOOM = 16;
 const PLAN_BUCKET = "documents_services";
 
+const rawApiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
+function normalizeApiBaseUrl(url) {
+  if (!url) return "http://localhost:4000";
+
+  const trimmed = url.trim().replace(/\/+$/, "");
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(rawApiBaseUrl);
+
 function ResizeMap({ menuOpen, selectedFeature }) {
   const map = useMap();
 
@@ -59,7 +75,48 @@ function MapInstanceCapture({ mapRef }) {
   return null;
 }
 
-function BasemapSwitcher({ basemap, setBasemap }) {
+function LayersIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="basemap-dock-layers-icon"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 4 20 8 12 12 4 8 12 4Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.5 11 12 14.5 18.5 11"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.5 14.5 12 18 18.5 14.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function BasemapSwitcher({
+  basemap,
+  setBasemap,
+  onToggleLayers,
+  layersOpen,
+  layersEnabled,
+  activeLayersCount,
+}) {
   const options = [
     { key: "road", label: "Route", img: roadImg },
     { key: "satellite", label: "Satellite", img: satelliteImg },
@@ -89,6 +146,218 @@ function BasemapSwitcher({ basemap, setBasemap }) {
           </button>
         );
       })}
+
+      <button
+        type="button"
+        className={`basemap-dock-item ${layersOpen ? "active" : ""}`}
+        onClick={onToggleLayers}
+        aria-pressed={layersOpen}
+        aria-label="Afficher les calques disponibles"
+        title={
+          layersEnabled
+            ? "Afficher les calques disponibles"
+            : "Sélectionnez un service, un site ou une installation"
+        }
+        disabled={!layersEnabled}
+      >
+        <span className="basemap-dock-thumb-wrap basemap-dock-thumb-wrap--icon layers-icon-wrap">
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="#2563eb"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polygon points="12 3 3 8 12 13 21 8 12 3" fill="#60a5fa" />
+            <polyline points="3 12 12 17 21 12" />
+            <polyline points="3 16 12 21 21 16" />
+          </svg>
+
+          {activeLayersCount > 0 && <span className="layers-badge-dot" />}
+        </span>
+
+        <span className="basemap-dock-label">Calques</span>
+      </button>
+    </div>
+  );
+}
+
+function LayersPanel({
+  open,
+  contextLabel,
+  layers,
+  loading,
+  error,
+  onClose,
+  onToggleLayer,
+  position,
+  onPositionChange,
+}) {
+  const panelRef = useRef(null);
+  const dragStateRef = useRef({
+    dragging: false,
+    startX: 0,
+    startY: 0,
+    originX: 0,
+    originY: 0,
+  });
+
+  const startDrag = useCallback(
+    (clientX, clientY) => {
+      dragStateRef.current = {
+        dragging: true,
+        startX: clientX,
+        startY: clientY,
+        originX: position.x,
+        originY: position.y,
+      };
+    },
+    [position.x, position.y],
+  );
+
+  const onMouseDownHeader = useCallback(
+    (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      startDrag(event.clientX, event.clientY);
+    },
+    [startDrag],
+  );
+
+  const onTouchStartHeader = useCallback(
+    (event) => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      startDrag(touch.clientX, touch.clientY);
+    },
+    [startDrag],
+  );
+
+  useEffect(() => {
+    function moveAt(clientX, clientY) {
+      if (!dragStateRef.current.dragging) return;
+
+      const dx = clientX - dragStateRef.current.startX;
+      const dy = clientY - dragStateRef.current.startY;
+
+      const panel = panelRef.current;
+      const parent = panel?.offsetParent;
+
+      let nextX = dragStateRef.current.originX + dx;
+      let nextY = dragStateRef.current.originY + dy;
+
+      if (panel && parent) {
+        const maxX = Math.max(0, parent.clientWidth - panel.offsetWidth);
+        const maxY = Math.max(0, parent.clientHeight - panel.offsetHeight);
+
+        nextX = Math.min(Math.max(0, nextX), maxX);
+        nextY = Math.min(Math.max(0, nextY), maxY);
+      }
+
+      onPositionChange({ x: nextX, y: nextY });
+    }
+
+    function handleMouseMove(event) {
+      moveAt(event.clientX, event.clientY);
+    }
+
+    function handleTouchMove(event) {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      moveAt(touch.clientX, touch.clientY);
+    }
+
+    function stopDrag() {
+      dragStateRef.current.dragging = false;
+    }
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopDrag);
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", stopDrag);
+    window.addEventListener("touchcancel", stopDrag);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopDrag);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", stopDrag);
+      window.removeEventListener("touchcancel", stopDrag);
+    };
+  }, [onPositionChange]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={panelRef}
+      className="layers-panel layers-panel--draggable"
+      role="dialog"
+      aria-modal="false"
+      aria-label="Calques disponibles"
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+      }}
+    >
+      <div
+        className="layers-panel__header layers-panel__header--draggable"
+        onMouseDown={onMouseDownHeader}
+        onTouchStart={onTouchStartHeader}
+      >
+        <div>
+          <div className="layers-panel__title">Calques</div>
+          <div className="layers-panel__subtitle">
+            {contextLabel || "Aucun contexte sélectionné"}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="layers-panel__close"
+          onClick={onClose}
+          aria-label="Fermer le panneau des calques"
+        >
+          ×
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="layers-panel__state">Chargement des calques...</div>
+      ) : error ? (
+        <div className="layers-panel__state layers-panel__state--error">
+          {error}
+        </div>
+      ) : layers.length === 0 ? (
+        <div className="layers-panel__state">
+          Aucun calque disponible pour cette carte.
+        </div>
+      ) : (
+        <div className="layers-panel__list">
+          {layers.map((layer) => (
+            <label key={layer.id_calque} className="layers-panel__item">
+              <input
+                type="checkbox"
+                checked={Boolean(layer.visible)}
+                onChange={() => onToggleLayer(layer.id_calque)}
+              />
+              <span className="layers-panel__item-text">
+                <span className="layers-panel__item-label">
+                  {layer.lib_calque || layer.code_calque || "Calque sans nom"}
+                </span>
+                {layer.description_calque ? (
+                  <span className="layers-panel__item-description">
+                    {layer.description_calque}
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -181,6 +450,42 @@ export default function MapLayout({
 
   const [viewMode, setViewMode] = useState("map");
   const [activePlan, setActivePlan] = useState(null);
+
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [layersLoading, setLayersLoading] = useState(false);
+  const [layersError, setLayersError] = useState("");
+  const [availableLayers, setAvailableLayers] = useState([]);
+  const [layerContext, setLayerContext] = useState(null);
+  const [layersPanelPosition, setLayersPanelPosition] = useState({
+    x: 0,
+    y: 18,
+  });
+  useEffect(() => {
+    if (!layersOpen) return;
+
+    const panelWidth = 320;
+    const rightMargin = 14;
+
+    const mapShell = document.querySelector(".map-shell");
+    const panel = document.querySelector(".layers-panel");
+    if (!mapShell || !panel) return;
+    const margin = 16;
+    setLayersPanelPosition({
+      x: mapShell.clientWidth - panel.offsetWidth - margin,
+      y: 18,
+    });
+    const nextX = Math.max(0, mapShell.clientWidth - panelWidth - rightMargin);
+
+    setLayersPanelPosition((prev) => ({
+      x: nextX,
+      y: prev?.y ?? 18,
+    }));
+  }, [layersOpen]);
+
+  const activeLayersCount = useMemo(
+    () => availableLayers.filter((layer) => Boolean(layer.visible)).length,
+    [availableLayers],
+  );
 
   const toggleMenu = useCallback(() => {
     setMenuOpen((prev) => !prev);
@@ -299,6 +604,99 @@ export default function MapLayout({
     }
   }, []);
 
+  const loadLayersForNode = useCallback(async (node) => {
+    const nodeType = node?.type ?? null;
+
+    if (
+      nodeType !== "site" &&
+      nodeType !== "service" &&
+      nodeType !== "installation"
+    ) {
+      setLayerContext(null);
+      setAvailableLayers([]);
+      setLayersError("");
+      setLayersLoading(false);
+      return;
+    }
+
+    // 🔥 EXTRACTION UUID depuis node.id
+    let contextId = null;
+
+    if (typeof node?.id === "string") {
+      const parts = node.id.split("-");
+      contextId = parts.slice(1).join("-");
+    }
+
+    const context = {
+      type: nodeType,
+      id: contextId,
+      label: node?.label ?? "Sans nom",
+    };
+
+    console.log("MAP LAYERS CONTEXT =", context);
+
+    setLayerContext(context);
+
+    if (!context.id) {
+      setAvailableLayers([]);
+      setLayersError("Contexte de carte incomplet.");
+      setLayersLoading(false);
+      return;
+    }
+
+    try {
+      setLayersLoading(true);
+      setLayersError("");
+
+      const url = `${API_BASE_URL}/api/map-layers?type=${encodeURIComponent(context.type)}&id=${encodeURIComponent(context.id)}`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Erreur HTTP ${response.status} - ${text}`);
+      }
+
+      const data = await response.json();
+
+      const normalized = Array.isArray(data)
+        ? data.map((layer) => ({
+            ...layer,
+            visible:
+              typeof layer.visible === "boolean"
+                ? layer.visible
+                : Boolean(layer.visible_defaut),
+          }))
+        : [];
+
+      setAvailableLayers(normalized);
+    } catch (error) {
+      console.error("Erreur chargement calques :", error);
+      setAvailableLayers([]);
+      setLayersError(error?.message || "Impossible de charger les calques.");
+    } finally {
+      setLayersLoading(false);
+    }
+  }, []);
+
+  const toggleLayersPanel = useCallback(() => {
+    setLayersOpen((prev) => !prev);
+  }, []);
+
+  const closeLayersPanel = useCallback(() => {
+    setLayersOpen(false);
+  }, []);
+
+  const toggleLayerVisibility = useCallback((idCalque) => {
+    setAvailableLayers((prev) =>
+      prev.map((layer) =>
+        layer.id_calque === idCalque
+          ? { ...layer, visible: !layer.visible }
+          : layer,
+      ),
+    );
+  }, []);
+
   const handleNodeClick = useCallback(
     async (node) => {
       setSelectedNode(node);
@@ -309,11 +707,13 @@ export default function MapLayout({
 
       if (nodeType === "folder") {
         setSelectedFeature(null);
+        closeLayersPanel();
         return;
       }
 
       const isPlan = nodeType === "plan" || category === "plan";
       if (isPlan) {
+        closeLayersPanel();
         await openPlan(node);
         return;
       }
@@ -346,6 +746,8 @@ export default function MapLayout({
         nodeType === "service" ||
         nodeType === "installation"
       ) {
+        await loadLayersForNode(node);
+
         if (hasPointGeometry) {
           setSelectedFeature({
             id: node.id,
@@ -383,6 +785,7 @@ export default function MapLayout({
         nodeType === "document" &&
         (node?.data?.path_file || node?.path_file)
       ) {
+        closeLayersPanel();
         window.open(
           node?.data?.path_file ?? node?.path_file,
           "_blank",
@@ -390,7 +793,14 @@ export default function MapLayout({
         );
       }
     },
-    [closePlan, flyToNodeCenter, openPlan, viewMode],
+    [
+      closeLayersPanel,
+      closePlan,
+      flyToNodeCenter,
+      loadLayersForNode,
+      openPlan,
+      viewMode,
+    ],
   );
 
   const expandAll = useCallback(() => {
@@ -402,6 +812,16 @@ export default function MapLayout({
     setTreeAction("collapse");
     setTreeActionToken((v) => v + 1);
   }, []);
+
+  const layersEnabled =
+    viewMode === "map" &&
+    (layerContext?.type === "site" ||
+      layerContext?.type === "service" ||
+      layerContext?.type === "installation");
+
+  const layerContextLabel = layerContext
+    ? `${layerContext.type} · ${layerContext.label}`
+    : "";
 
   return (
     <div className={`app ${menuOpen ? "menu-open" : ""}`}>
@@ -454,11 +874,11 @@ export default function MapLayout({
                             fill="white"
                             aria-hidden="true"
                           >
-                            <path d="M6.6 10.8a15 15 0 006.6 6.6l2.2-2.2a1 1 0 011-.24 11.4 11.4 0 003.6.6 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 5a1 1 0 011-1h2.4a1 1 0 011 1 11.4 11.4 0 00.6 3.6 1 1 0 01-.24 1z" />
+                            <path d="M6.6 10.8a15 15 0 006.6 6.6l2.2-2.2a1.5 1.5 0 011.53-.36c1.17.39 2.42.6 3.7.6A1.5 1.5 0 0120 17.08V21a1.5 1.5 0 01-1.5 1.5C9.94 22.5 1.5 14.06 1.5 3.5A1.5 1.5 0 013 2h3.92a1.5 1.5 0 011.48 1.28c.1 1.28.31 2.53.7 3.7a1.5 1.5 0 01-.36 1.53l-2.14 2.29z" />
                           </svg>
                         </span>
                         <span className="business-card__text">
-                          +33 7 69 86 26 64
+                          +33 6 95 03 01 46
                         </span>
                       </div>
 
@@ -704,8 +1124,27 @@ export default function MapLayout({
           {viewMode === "map" ? (
             <>
               <div className="map-hover-ui">
-                <BasemapSwitcher basemap={basemap} setBasemap={setBasemap} />
+                <BasemapSwitcher
+                  basemap={basemap}
+                  setBasemap={setBasemap}
+                  onToggleLayers={toggleLayersPanel}
+                  layersOpen={layersOpen}
+                  layersEnabled={layersEnabled}
+                  activeLayersCount={activeLayersCount}
+                />
               </div>
+
+              <LayersPanel
+                open={layersOpen}
+                contextLabel={layerContextLabel}
+                layers={availableLayers}
+                loading={layersLoading}
+                error={layersError}
+                onClose={closeLayersPanel}
+                onToggleLayer={toggleLayerVisibility}
+                position={layersPanelPosition}
+                onPositionChange={setLayersPanelPosition}
+              />
 
               <MapContainer
                 center={CENTER}

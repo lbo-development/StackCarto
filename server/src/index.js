@@ -27,6 +27,7 @@ app.use("/api", apiRoutes);
 app.use("/api/sites", sitesRoutes);
 app.use("/api/services", servicesRoutes);
 app.use("/api/carto", cartoRoutes);
+app.use("/api", cartoRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
