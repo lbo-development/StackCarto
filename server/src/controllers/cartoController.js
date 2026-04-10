@@ -78,7 +78,7 @@ export async function getMapLayers(req, res) {
       )
       .in("id_support_calque", supportIds)
       .eq("actif", true)
-      .order("ordre_calque", { ascending: true })
+      .order("ordre_calque", { ascending: true, nullsFirst: false })
       .order("lib_calque", { ascending: true });
 
     if (layersError) {

@@ -21,6 +21,7 @@ import CartoTree from "./CartoTree";
 import PlanViewer from "./PlanViewer";
 import { fetchCartoTree } from "../lib/cartoApi";
 import { supabase } from "../lib/supabase";
+import { ListChevronsDownUp, ListChevronsUpDown, Menu } from "lucide-react";
 
 delete L.Icon.Default.prototype._getIconUrl;
 
@@ -193,6 +194,8 @@ function LayersPanel({
   error,
   onClose,
   onToggleLayer,
+  onShowAll,
+  onHideAll,
   position,
   onPositionChange,
 }) {
@@ -308,21 +311,55 @@ function LayersPanel({
         onMouseDown={onMouseDownHeader}
         onTouchStart={onTouchStartHeader}
       >
-        <div>
-          <div className="layers-panel__title">Calques</div>
-          <div className="layers-panel__subtitle">
-            {contextLabel || "Aucun contexte sélectionné"}
-          </div>
-        </div>
-
         <button
           type="button"
-          className="layers-panel__close"
-          onClick={onClose}
+          className="layers-panel__close-floating"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           aria-label="Fermer le panneau des calques"
         >
           ×
         </button>
+
+        <div className="layers-panel__header-row">
+          <div className="layers-panel__title">Calques</div>
+
+          <div className="layers-panel__header-actions">
+            <button
+              type="button"
+              className="layers-panel__header-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowAll();
+              }}
+              disabled={loading || layers.length === 0}
+              title="Tout afficher"
+              aria-label="Tout afficher"
+            >
+              ✓
+            </button>
+
+            <button
+              type="button"
+              className="layers-panel__header-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onHideAll();
+              }}
+              disabled={loading || layers.length === 0}
+              title="Tout masquer"
+              aria-label="Tout masquer"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div className="layers-panel__subtitle-inline">
+          {contextLabel || "Aucun contexte sélectionné"}
+        </div>
       </div>
 
       {loading ? (
@@ -460,6 +497,25 @@ export default function MapLayout({
     x: 0,
     y: 18,
   });
+
+  const showAllLayers = useCallback(() => {
+    setAvailableLayers((prev) =>
+      prev.map((layer) => ({
+        ...layer,
+        visible: true,
+      })),
+    );
+  }, []);
+
+  const hideAllLayers = useCallback(() => {
+    setAvailableLayers((prev) =>
+      prev.map((layer) => ({
+        ...layer,
+        visible: false,
+      })),
+    );
+  }, []);
+
   useEffect(() => {
     if (!layersOpen) return;
 
@@ -819,9 +875,7 @@ export default function MapLayout({
       layerContext?.type === "service" ||
       layerContext?.type === "installation");
 
-  const layerContextLabel = layerContext
-    ? `${layerContext.type} · ${layerContext.label}`
-    : "";
+  const layerContextLabel = layerContext?.label || "";
 
   return (
     <div className={`app ${menuOpen ? "menu-open" : ""}`}>
@@ -835,9 +889,7 @@ export default function MapLayout({
             aria-expanded={menuOpen}
             aria-controls="sidebar"
           >
-            <span />
-            <span />
-            <span />
+            <Menu size={20} />
           </button>
 
           <div className="topbar-brand topbar-brand--has-card">
@@ -993,8 +1045,14 @@ export default function MapLayout({
 
       <div className="layout">
         <aside id="sidebar" className="sidebar">
-          <div className="sidebar-header">
-            <h2>Explorateur</h2>
+          <div className="sidebar-header sidebar-header--search">
+            <input
+              id="searchInput"
+              type="text"
+              className="modern-input modern-input--search"
+              placeholder="Rechercher dans la base documentaire..."
+            />
+
             <button
               type="button"
               className="close-btn"
@@ -1003,18 +1061,6 @@ export default function MapLayout({
             >
               ×
             </button>
-          </div>
-
-          <div className="sidebar-section">
-            <label htmlFor="searchInput" className="section-label">
-              Recherche
-            </label>
-            <input
-              id="searchInput"
-              type="text"
-              className="modern-input"
-              placeholder="Rechercher un site, une installation ou un fichier..."
-            />
           </div>
 
           <div className="sidebar-section">
@@ -1030,28 +1076,7 @@ export default function MapLayout({
                   onClick={expandAll}
                   aria-label="Tout déplier"
                 >
-                  <svg
-                    viewBox="0 0 20 20"
-                    className="tree-toolbar-icon"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M6 5l4 4 4-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M6 10l4 4 4-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <ListChevronsDownUp size={18} />
                   <span className="tree-toolbar-tooltip">Tout déplier</span>
                 </button>
 
@@ -1061,28 +1086,7 @@ export default function MapLayout({
                   onClick={collapseAll}
                   aria-label="Tout replier"
                 >
-                  <svg
-                    viewBox="0 0 20 20"
-                    className="tree-toolbar-icon"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M7 6l4 4-4 4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M11 6l4 4-4 4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <ListChevronsUpDown size={18} />
                   <span className="tree-toolbar-tooltip">Tout replier</span>
                 </button>
               </div>
@@ -1142,6 +1146,8 @@ export default function MapLayout({
                 error={layersError}
                 onClose={closeLayersPanel}
                 onToggleLayer={toggleLayerVisibility}
+                onShowAll={showAllLayers}
+                onHideAll={hideAllLayers}
                 position={layersPanelPosition}
                 onPositionChange={setLayersPanelPosition}
               />
