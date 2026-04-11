@@ -1757,8 +1757,7 @@ button {
 }
 .layers-panel__item {
   display: flex;
-  grid-template-columns: 18px minmax(0, 1fr);
-  align-items: center;
+  align-items: center; /* centre verticalement checkbox + texte */
   justify-content: flex-start;
   gap: 10px;
   padding: 9px 10px;
@@ -1768,7 +1767,8 @@ button {
 }
 
 .layers-panel__item input {
-  margin: 2px 0 0;
+  margin: 0; /* supprime le petit décalage vertical */
+  flex: 0 0 auto;
 }
 
 .layers-panel__item-text {
@@ -1776,6 +1776,7 @@ button {
   margin-left: 6px;
   display: flex;
   flex-direction: column;
+  justify-content: center; /* centre mieux le contenu */
   gap: 2px;
 }
 
@@ -1783,13 +1784,21 @@ button {
   font-size: 14px;
   font-weight: 600;
   color: #1e293b;
+  line-height: 1.2;
 }
 
 .layers-panel__item-description {
   font-size: 12px;
   color: #64748b;
+  line-height: 1.2;
+}
+.layers-panel__item--out-of-range .layers-panel__item-label {
+  color: #94a3b8;
 }
 
+.layers-panel__item--out-of-range .layers-panel__item-description {
+  color: #cbd5e1;
+}
 .layers-panel__state {
   padding: 12px;
   border: 1px dashed #cbd5e1;
@@ -1908,4 +1917,85 @@ button {
 .layers-panel__header-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+
+.header-logout-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(22, 101, 52, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.65);
+  color: #166534;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.header-logout-btn:hover {
+  background: #ffffff;
+}
+.custom-layer-divicon-wrapper {
+  background: transparent;
+  border: none;
+}
+
+.custom-layer-divicon {
+  box-sizing: border-box;
+}
+
+.custom-layer-image-marker {
+  filter: drop-shadow(0 2px 6px rgba(15, 23, 42, 0.25));
+}
+
+.marker-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.marker-table td {
+  padding: 5px 4px;
+  font-size: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+
+.marker-table__key {
+  width: 44%;
+  font-weight: 600;
+  color: #334155;
+}
+
+.marker-table__value {
+  width: 56%;
+  color: #475569;
+  text-align: left;
+  word-break: break-word;
+}
+
+.marker-table tr:last-child td {
+  border-bottom: none;
+}
+.marker-popup {
+  min-width: 180px;
+  max-width: 240px;
+}
+
+.marker-popup__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.marker-popup__description {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #475569;
+  margin-bottom: 8px;
 }

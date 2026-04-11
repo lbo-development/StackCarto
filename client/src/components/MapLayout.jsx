@@ -9,6 +9,9 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "./MapLayout.css";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -66,48 +69,15 @@ function ResizeMap({ menuOpen, selectedFeature }) {
   return null;
 }
 
-function MapInstanceCapture({ mapRef }) {
+function MapInstanceCapture({ mapRef, onReady }) {
   const map = useMap();
 
   useEffect(() => {
     mapRef.current = map;
-  }, [map, mapRef]);
+    onReady?.(map);
+  }, [map, mapRef, onReady]);
 
   return null;
-}
-
-function LayersIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="basemap-dock-layers-icon"
-      aria-hidden="true"
-    >
-      <path
-        d="M12 4 20 8 12 12 4 8 12 4Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5.5 11 12 14.5 18.5 11"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5.5 14.5 12 18 18.5 14.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 function BasemapSwitcher({
@@ -198,6 +168,7 @@ function LayersPanel({
   onHideAll,
   position,
   onPositionChange,
+  currentMapZoom,
 }) {
   const panelRef = useRef(null);
   const dragStateRef = useRef({
@@ -374,25 +345,41 @@ function LayersPanel({
         </div>
       ) : (
         <div className="layers-panel__list">
-          {layers.map((layer) => (
-            <label key={layer.id_calque} className="layers-panel__item">
-              <input
-                type="checkbox"
-                checked={Boolean(layer.visible)}
-                onChange={() => onToggleLayer(layer.id_calque)}
-              />
-              <span className="layers-panel__item-text">
-                <span className="layers-panel__item-label">
-                  {layer.lib_calque || layer.code_calque || "Calque sans nom"}
-                </span>
-                {layer.description_calque ? (
-                  <span className="layers-panel__item-description">
-                    {layer.description_calque}
+          {layers.map((layer) => {
+            const minZoom = Number.isFinite(layer.min_zoom)
+              ? layer.min_zoom
+              : 0;
+            const maxZoom = Number.isFinite(layer.max_zoom)
+              ? layer.max_zoom
+              : 22;
+            const isInZoomRange =
+              currentMapZoom >= minZoom && currentMapZoom <= maxZoom;
+
+            return (
+              <label
+                key={layer.id_calque}
+                className={`layers-panel__item ${!isInZoomRange ? "layers-panel__item--out-of-range" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(layer.visible)}
+                  onChange={() => onToggleLayer(layer.id_calque)}
+                />
+
+                <span className="layers-panel__item-text">
+                  <span className="layers-panel__item-label">
+                    {layer.lib_calque || layer.code_calque || "Calque sans nom"}
                   </span>
-                ) : null}
-              </span>
-            </label>
-          ))}
+
+                  {layer.description_calque ? (
+                    <span className="layers-panel__item-description">
+                      {layer.description_calque}
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            );
+          })}
         </div>
       )}
     </div>
@@ -463,6 +450,183 @@ function SelectedMarker({ feature }) {
     </Marker>
   );
 }
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatKey(key) {
+  return key.replaceAll("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
+function getLayerPointIcon(layer) {
+  const markerType = String(layer?.marker_type || "circle").toLowerCase();
+  const color = layer?.marker_color || "#2563eb";
+  const size = Number.isFinite(layer?.marker_size) ? layer.marker_size : 28;
+  const iconUrl = layer?.marker_icon_url || null;
+  const iconName = String(layer?.marker_icon_name || "").toLowerCase();
+
+  if (markerType === "image" && iconUrl) {
+    return L.icon({
+      iconUrl,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size],
+      popupAnchor: [0, -size],
+      className: "custom-layer-image-marker",
+    });
+  }
+
+  let symbol = "●";
+
+  if (iconName === "camera") symbol = "📷";
+  else if (iconName === "hydrant") symbol = "🧯";
+  else if (iconName === "access") symbol = "🚪";
+  else if (iconName === "sensor") symbol = "📡";
+  else if (iconName === "alarm") symbol = "🚨";
+  else if (iconName === "default") symbol = "●";
+
+  const safeSymbol = escapeHtml(symbol);
+
+  return L.divIcon({
+    className: "custom-layer-divicon-wrapper",
+    html: `
+      <div
+        class="custom-layer-divicon"
+        style="
+          width:${size}px;
+          height:${size}px;
+          background:${color};
+          border:2px solid #ffffff;
+          box-shadow:0 2px 8px rgba(15,23,42,0.28);
+          border-radius:50%;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          color:#ffffff;
+          font-size:${Math.max(12, Math.round(size * 0.5))}px;
+          line-height:1;
+        "
+      >
+        ${safeSymbol}
+      </div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -Math.round(size / 2)],
+  });
+}
+
+function toLatLng(coords) {
+  if (!Array.isArray(coords) || coords.length < 2) return null;
+  return [coords[1], coords[0]];
+}
+
+function createPopupHtml(obj) {
+  const props = obj?.properties ?? {};
+
+  const title = escapeHtml(obj.lib_objet || obj.code_objet || "Objet");
+
+  const description = obj?.description_objet
+    ? `<div class="marker-popup__description">${escapeHtml(obj.description_objet)}</div>`
+    : "";
+
+  const rows = Object.entries(props)
+    .map(([key, value]) => {
+      return `
+        <tr>
+          <td class="marker-table__key">${escapeHtml(formatKey(key))}</td>
+          <td class="marker-table__value">${escapeHtml(value)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const table = rows
+    ? `
+      <table class="marker-table">
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    `
+    : "";
+
+  return `
+    <div class="marker-popup">
+      <div class="marker-popup__title">${title}</div>
+      ${description}
+      ${table}
+    </div>
+  `;
+}
+
+function createLayerFromGeometry(obj, layer) {
+  const geom = obj?.geom;
+  if (!geom || !geom.type) return null;
+
+  const popupHtml = createPopupHtml(obj);
+
+  if (geom.type === "Point") {
+    const latLng = toLatLng(geom.coordinates);
+    if (!latLng) return null;
+    return L.marker(latLng, { icon: getLayerPointIcon(layer) }).bindPopup(
+      popupHtml,
+    );
+  }
+
+  if (geom.type === "MultiPoint") {
+    const group = L.layerGroup();
+    geom.coordinates?.forEach((coords) => {
+      const latLng = toLatLng(coords);
+      if (latLng) {
+        L.marker(latLng, { icon: getLayerPointIcon(layer) }).bindPopup(
+          popupHtml,
+        );
+      }
+    });
+    return group;
+  }
+
+  if (geom.type === "LineString") {
+    const latLngs = geom.coordinates?.map(toLatLng).filter(Boolean) ?? [];
+    if (latLngs.length === 0) return null;
+    return L.polyline(latLngs).bindPopup(popupHtml);
+  }
+
+  if (geom.type === "MultiLineString") {
+    const latLngs =
+      geom.coordinates?.map((line) => line.map(toLatLng).filter(Boolean)) ?? [];
+    if (latLngs.length === 0) return null;
+    return L.polyline(latLngs).bindPopup(popupHtml);
+  }
+
+  if (geom.type === "Polygon") {
+    const latLngs =
+      geom.coordinates?.map((ring) => ring.map(toLatLng).filter(Boolean)) ?? [];
+    if (latLngs.length === 0) return null;
+    return L.polygon(latLngs).bindPopup(popupHtml);
+  }
+
+  if (geom.type === "MultiPolygon") {
+    const latLngs =
+      geom.coordinates?.map((polygon) =>
+        polygon.map((ring) => ring.map(toLatLng).filter(Boolean)),
+      ) ?? [];
+    if (latLngs.length === 0) return null;
+    return L.polygon(latLngs).bindPopup(popupHtml);
+  }
+
+  return null;
+}
+
+function isClusterLayer(layer) {
+  const type = String(layer?.type_entite || "").toLowerCase();
+  return type === "point" || type === "multi_point" || type === "multipoint";
+}
 
 export default function MapLayout({
   session,
@@ -471,6 +635,13 @@ export default function MapLayout({
   onLogout,
 }) {
   const mapRef = useRef(null);
+  const layerGroupsRef = useRef({});
+  const layerMetaRef = useRef({});
+  const zoomHandlerAttachedRef = useRef(false);
+
+  const contextVersionRef = useRef(0);
+  const desiredVisibleLayersRef = useRef({});
+  const pendingControllersRef = useRef({});
 
   const [menuOpen, setMenuOpen] = useState(true);
   const [basemap, setBasemap] = useState("road");
@@ -493,49 +664,251 @@ export default function MapLayout({
   const [layersError, setLayersError] = useState("");
   const [availableLayers, setAvailableLayers] = useState([]);
   const [layerContext, setLayerContext] = useState(null);
+  const [currentMapZoom, setCurrentMapZoom] = useState(DEFAULT_MAP_ZOOM);
+
   const [layersPanelPosition, setLayersPanelPosition] = useState({
     x: 0,
     y: 18,
   });
 
-  const showAllLayers = useCallback(() => {
-    setAvailableLayers((prev) =>
-      prev.map((layer) => ({
-        ...layer,
-        visible: true,
-      })),
-    );
+  const abortAllPendingLayerRequests = useCallback(() => {
+    Object.values(pendingControllersRef.current).forEach((controller) => {
+      try {
+        controller.abort();
+      } catch {
+        // noop
+      }
+    });
+    pendingControllersRef.current = {};
   }, []);
 
+  const clearRenderedLayers = useCallback(() => {
+    abortAllPendingLayerRequests();
+    desiredVisibleLayersRef.current = {};
+    contextVersionRef.current += 1;
+
+    const map = mapRef.current;
+    if (map) {
+      Object.values(layerGroupsRef.current).forEach((group) => {
+        if (map.hasLayer(group)) {
+          map.removeLayer(group);
+        }
+        if (typeof group.clearLayers === "function") {
+          group.clearLayers();
+        }
+      });
+    }
+
+    layerGroupsRef.current = {};
+    layerMetaRef.current = {};
+  }, [abortAllPendingLayerRequests]);
+
+  const syncRenderedLayersWithZoom = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const zoom = map.getZoom();
+
+    Object.entries(layerGroupsRef.current).forEach(([layerId, group]) => {
+      if (!desiredVisibleLayersRef.current[layerId]) {
+        if (map.hasLayer(group)) {
+          map.removeLayer(group);
+        }
+        return;
+      }
+
+      const meta = layerMetaRef.current[layerId];
+      if (!meta) return;
+
+      const minZoom = Number.isFinite(meta.minZoom) ? meta.minZoom : 0;
+      const maxZoom = Number.isFinite(meta.maxZoom) ? meta.maxZoom : 22;
+      const inRange = zoom >= minZoom && zoom <= maxZoom;
+
+      if (inRange) {
+        if (!map.hasLayer(group)) {
+          group.addTo(map);
+        }
+      } else if (map.hasLayer(group)) {
+        map.removeLayer(group);
+      }
+    });
+  }, []);
+
+  const removeLayerFromMap = useCallback((layerId) => {
+    desiredVisibleLayersRef.current[layerId] = false;
+
+    const controller = pendingControllersRef.current[layerId];
+    if (controller) {
+      try {
+        controller.abort();
+      } catch {
+        // noop
+      }
+      delete pendingControllersRef.current[layerId];
+    }
+
+    const map = mapRef.current;
+    const group = layerGroupsRef.current[layerId];
+
+    if (map && group) {
+      if (map.hasLayer(group)) {
+        map.removeLayer(group);
+      }
+
+      if (typeof group.clearLayers === "function") {
+        group.clearLayers();
+      }
+    }
+
+    delete layerGroupsRef.current[layerId];
+    delete layerMetaRef.current[layerId];
+  }, []);
+
+  const addLayerToMap = useCallback(
+    async (layer) => {
+      const map = mapRef.current;
+      if (!map || !layer?.id_calque) return;
+
+      const layerId = layer.id_calque;
+      const requestContextVersion = contextVersionRef.current;
+
+      desiredVisibleLayersRef.current[layerId] = true;
+
+      const existingGroup = layerGroupsRef.current[layerId];
+      if (existingGroup) {
+        if (map.hasLayer(existingGroup)) {
+          map.removeLayer(existingGroup);
+        }
+        if (typeof existingGroup.clearLayers === "function") {
+          existingGroup.clearLayers();
+        }
+      }
+
+      delete layerGroupsRef.current[layerId];
+      delete layerMetaRef.current[layerId];
+
+      const previousController = pendingControllersRef.current[layerId];
+      if (previousController) {
+        try {
+          previousController.abort();
+        } catch {
+          // noop
+        }
+      }
+
+      const controller = new AbortController();
+      pendingControllersRef.current[layerId] = controller;
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/carto/layer-objects`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              layerIds: [layerId],
+            }),
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Erreur HTTP ${response.status} - ${text}`);
+        }
+
+        const objects = await response.json();
+
+        if (controller.signal.aborted) return;
+        if (requestContextVersion !== contextVersionRef.current) return;
+        if (!desiredVisibleLayersRef.current[layerId]) return;
+
+        const group = isClusterLayer(layer)
+          ? L.markerClusterGroup()
+          : L.layerGroup();
+
+        (Array.isArray(objects) ? objects : []).forEach((obj) => {
+          const leafletLayer = createLayerFromGeometry(obj, layer);
+          if (leafletLayer) {
+            group.addLayer(leafletLayer);
+          }
+        });
+
+        if (requestContextVersion !== contextVersionRef.current) {
+          if (typeof group.clearLayers === "function") {
+            group.clearLayers();
+          }
+          return;
+        }
+
+        if (!desiredVisibleLayersRef.current[layerId]) {
+          if (typeof group.clearLayers === "function") {
+            group.clearLayers();
+          }
+          return;
+        }
+
+        layerGroupsRef.current[layerId] = group;
+        layerMetaRef.current[layerId] = {
+          minZoom: Number.isFinite(layer.min_zoom) ? layer.min_zoom : 0,
+          maxZoom: Number.isFinite(layer.max_zoom) ? layer.max_zoom : 22,
+        };
+
+        syncRenderedLayersWithZoom();
+      } catch (error) {
+        if (error?.name !== "AbortError") {
+          console.error("Erreur chargement objets du calque :", error);
+        }
+      } finally {
+        if (pendingControllersRef.current[layerId] === controller) {
+          delete pendingControllersRef.current[layerId];
+        }
+      }
+    },
+    [syncRenderedLayersWithZoom],
+  );
+
+  const showAllLayers = useCallback(() => {
+    setAvailableLayers((prev) => {
+      const next = prev.map((layer) => ({ ...layer, visible: true }));
+      next.forEach((layer) => {
+        desiredVisibleLayersRef.current[layer.id_calque] = true;
+        addLayerToMap(layer);
+      });
+      return next;
+    });
+  }, [addLayerToMap]);
+
   const hideAllLayers = useCallback(() => {
-    setAvailableLayers((prev) =>
-      prev.map((layer) => ({
+    setAvailableLayers((prev) => {
+      prev.forEach((layer) => {
+        if (layer.visible) {
+          removeLayerFromMap(layer.id_calque);
+        }
+      });
+
+      return prev.map((layer) => ({
         ...layer,
         visible: false,
-      })),
-    );
-  }, []);
+      }));
+    });
+  }, [removeLayerFromMap]);
 
   useEffect(() => {
     if (!layersOpen) return;
 
-    const panelWidth = 320;
-    const rightMargin = 14;
-
     const mapShell = document.querySelector(".map-shell");
     const panel = document.querySelector(".layers-panel");
     if (!mapShell || !panel) return;
+
     const margin = 16;
+
     setLayersPanelPosition({
-      x: mapShell.clientWidth - panel.offsetWidth - margin,
+      x: Math.max(0, mapShell.clientWidth - panel.offsetWidth - margin),
       y: 18,
     });
-    const nextX = Math.max(0, mapShell.clientWidth - panelWidth - rightMargin);
-
-    setLayersPanelPosition((prev) => ({
-      x: nextX,
-      y: prev?.y ?? 18,
-    }));
   }, [layersOpen]);
 
   const activeLayersCount = useMemo(
@@ -660,80 +1033,95 @@ export default function MapLayout({
     }
   }, []);
 
-  const loadLayersForNode = useCallback(async (node) => {
-    const nodeType = node?.type ?? null;
+  const loadLayersForNode = useCallback(
+    async (node) => {
+      const nodeType = node?.type ?? null;
 
-    if (
-      nodeType !== "site" &&
-      nodeType !== "service" &&
-      nodeType !== "installation"
-    ) {
-      setLayerContext(null);
-      setAvailableLayers([]);
-      setLayersError("");
-      setLayersLoading(false);
-      return;
-    }
+      clearRenderedLayers();
+      setLayersOpen(false);
 
-    // 🔥 EXTRACTION UUID depuis node.id
-    let contextId = null;
-
-    if (typeof node?.id === "string") {
-      const parts = node.id.split("-");
-      contextId = parts.slice(1).join("-");
-    }
-
-    const context = {
-      type: nodeType,
-      id: contextId,
-      label: node?.label ?? "Sans nom",
-    };
-
-    console.log("MAP LAYERS CONTEXT =", context);
-
-    setLayerContext(context);
-
-    if (!context.id) {
-      setAvailableLayers([]);
-      setLayersError("Contexte de carte incomplet.");
-      setLayersLoading(false);
-      return;
-    }
-
-    try {
-      setLayersLoading(true);
-      setLayersError("");
-
-      const url = `${API_BASE_URL}/api/map-layers?type=${encodeURIComponent(context.type)}&id=${encodeURIComponent(context.id)}`;
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Erreur HTTP ${response.status} - ${text}`);
+      if (
+        nodeType !== "site" &&
+        nodeType !== "service" &&
+        nodeType !== "installation"
+      ) {
+        setLayerContext(null);
+        setAvailableLayers([]);
+        setLayersError("");
+        setLayersLoading(false);
+        return;
       }
 
-      const data = await response.json();
+      let contextId = null;
 
-      const normalized = Array.isArray(data)
-        ? data.map((layer) => ({
-            ...layer,
-            visible:
-              typeof layer.visible === "boolean"
-                ? layer.visible
-                : Boolean(layer.visible_defaut),
-          }))
-        : [];
+      if (typeof node?.id === "string") {
+        const parts = node.id.split("-");
+        contextId = parts.slice(1).join("-");
+      }
 
-      setAvailableLayers(normalized);
-    } catch (error) {
-      console.error("Erreur chargement calques :", error);
-      setAvailableLayers([]);
-      setLayersError(error?.message || "Impossible de charger les calques.");
-    } finally {
-      setLayersLoading(false);
-    }
-  }, []);
+      const context = {
+        type: nodeType,
+        id: contextId,
+        label: node?.label ?? "Sans nom",
+      };
+
+      setLayerContext(context);
+
+      if (!context.id) {
+        setAvailableLayers([]);
+        setLayersError("Contexte de carte incomplet.");
+        setLayersLoading(false);
+        return;
+      }
+
+      try {
+        setLayersLoading(true);
+        setLayersError("");
+
+        const url = `${API_BASE_URL}/api/carto/map-layers?type=${encodeURIComponent(context.type)}&id=${encodeURIComponent(context.id)}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Erreur HTTP ${response.status} - ${text}`);
+        }
+
+        const data = await response.json();
+
+        const normalized = Array.isArray(data)
+          ? data.map((layer) => ({
+              ...layer,
+              visible:
+                typeof layer.visible === "boolean"
+                  ? layer.visible
+                  : Boolean(layer.visible_defaut),
+            }))
+          : [];
+
+        desiredVisibleLayersRef.current = {};
+        normalized.forEach((layer) => {
+          desiredVisibleLayersRef.current[layer.id_calque] = Boolean(
+            layer.visible,
+          );
+        });
+
+        setAvailableLayers(normalized);
+
+        normalized.forEach((layer) => {
+          if (layer.visible) {
+            addLayerToMap(layer);
+          }
+        });
+      } catch (error) {
+        console.error("Erreur chargement calques :", error);
+        setAvailableLayers([]);
+        setLayersError(error?.message || "Impossible de charger les calques.");
+      } finally {
+        setLayersLoading(false);
+      }
+    },
+    [addLayerToMap, clearRenderedLayers],
+  );
 
   const toggleLayersPanel = useCallback(() => {
     setLayersOpen((prev) => !prev);
@@ -743,15 +1131,30 @@ export default function MapLayout({
     setLayersOpen(false);
   }, []);
 
-  const toggleLayerVisibility = useCallback((idCalque) => {
-    setAvailableLayers((prev) =>
-      prev.map((layer) =>
-        layer.id_calque === idCalque
-          ? { ...layer, visible: !layer.visible }
-          : layer,
-      ),
-    );
-  }, []);
+  const toggleLayerVisibility = useCallback(
+    (idCalque) => {
+      setAvailableLayers((prev) =>
+        prev.map((layer) => {
+          if (layer.id_calque !== idCalque) return layer;
+
+          const nextVisible = !layer.visible;
+          desiredVisibleLayersRef.current[idCalque] = nextVisible;
+
+          if (nextVisible) {
+            addLayerToMap({ ...layer, visible: true });
+          } else {
+            removeLayerFromMap(idCalque);
+          }
+
+          return {
+            ...layer,
+            visible: nextVisible,
+          };
+        }),
+      );
+    },
+    [addLayerToMap, removeLayerFromMap],
+  );
 
   const handleNodeClick = useCallback(
     async (node) => {
@@ -876,6 +1279,29 @@ export default function MapLayout({
       layerContext?.type === "installation");
 
   const layerContextLabel = layerContext?.label || "";
+
+  const handleMapReady = useCallback(
+    (map) => {
+      if (zoomHandlerAttachedRef.current) return;
+
+      const handleZoomEnd = () => {
+        setCurrentMapZoom(map.getZoom());
+        syncRenderedLayersWithZoom();
+      };
+
+      setCurrentMapZoom(map.getZoom());
+      map.on("zoomend", handleZoomEnd);
+      zoomHandlerAttachedRef.current = true;
+      syncRenderedLayersWithZoom();
+    },
+    [syncRenderedLayersWithZoom],
+  );
+
+  useEffect(() => {
+    return () => {
+      clearRenderedLayers();
+    };
+  }, [clearRenderedLayers]);
 
   return (
     <div className={`app ${menuOpen ? "menu-open" : ""}`}>
@@ -1150,15 +1576,17 @@ export default function MapLayout({
                 onHideAll={hideAllLayers}
                 position={layersPanelPosition}
                 onPositionChange={setLayersPanelPosition}
+                currentMapZoom={currentMapZoom}
               />
 
               <MapContainer
                 center={CENTER}
                 zoom={DEFAULT_MAP_ZOOM}
                 className="map"
+                maxZoom={22}
                 zoomControl={false}
               >
-                <MapInstanceCapture mapRef={mapRef} />
+                <MapInstanceCapture mapRef={mapRef} onReady={handleMapReady} />
                 <ResizeMap
                   menuOpen={menuOpen}
                   selectedFeature={selectedFeature}
@@ -1169,6 +1597,8 @@ export default function MapLayout({
                   key={basemapConfig.key}
                   attribution={basemapConfig.attribution}
                   url={basemapConfig.url}
+                  maxZoom={22}
+                  maxNativeZoom={19}
                 />
 
                 {selectedFeature && (
