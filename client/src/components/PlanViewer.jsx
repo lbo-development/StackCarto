@@ -1,5 +1,11 @@
-import { useEffect, useMemo } from "react";
-import { ImageOverlay, MapContainer, useMap, ZoomControl } from "react-leaflet";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ImageOverlay,
+  MapContainer,
+  useMap,
+  useMapEvents,
+  ZoomControl,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -39,7 +45,57 @@ function FitBounds({ bounds, menuOpen }) {
   return null;
 }
 
+function PlanInteractionWatcher({ onMouseChange, onMouseLeave, onZoomChange }) {
+  const map = useMapEvents({
+    mousemove(event) {
+      const lat = event?.latlng?.lat;
+      const lng = event?.latlng?.lng;
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+      onMouseChange({
+        x: Math.round(lng),
+        y: Math.round(lat),
+      });
+    },
+    mouseout() {
+      onMouseLeave();
+    },
+    zoom() {
+      onZoomChange(map.getZoom());
+    },
+    zoomend() {
+      onZoomChange(map.getZoom());
+    },
+  });
+
+  useEffect(() => {
+    onZoomChange(map.getZoom());
+  }, [map, onZoomChange]);
+
+  return null;
+}
+
+function PlanStatusBadge({ coordinates, zoom }) {
+  const hasCoords =
+    Number.isFinite(coordinates?.x) && Number.isFinite(coordinates?.y);
+
+  return (
+    <div className="plan-coordinates-badge leaflet-control">
+      {hasCoords
+        ? `X : ${coordinates.x} | Y : ${coordinates.y} | Zoom : ${zoom}`
+        : `X : - | Y : - | Zoom : ${zoom}`}
+    </div>
+  );
+}
+
 export default function PlanViewer({ plan, menuOpen = true }) {
+  const [mouseCoordinates, setMouseCoordinates] = useState({
+    x: null,
+    y: null,
+  });
+  const [currentZoom, setCurrentZoom] = useState(0);
+
   const bounds = useMemo(() => {
     if (!plan?.url) return null;
 
@@ -61,6 +117,18 @@ export default function PlanViewer({ plan, menuOpen = true }) {
     ];
   }, [plan]);
 
+  const handleMouseChange = useCallback((coords) => {
+    setMouseCoordinates(coords);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setMouseCoordinates({ x: null, y: null });
+  }, []);
+
+  const handleZoomChange = useCallback((zoom) => {
+    setCurrentZoom(zoom);
+  }, []);
+
   if (!plan?.url || !bounds) {
     return null;
   }
@@ -78,6 +146,12 @@ export default function PlanViewer({ plan, menuOpen = true }) {
       <ZoomControl position="bottomright" />
       <ImageOverlay url={plan.url} bounds={bounds} />
       <FitBounds bounds={bounds} menuOpen={menuOpen} />
+      <PlanInteractionWatcher
+        onMouseChange={handleMouseChange}
+        onMouseLeave={handleMouseLeave}
+        onZoomChange={handleZoomChange}
+      />
+      <PlanStatusBadge coordinates={mouseCoordinates} zoom={currentZoom} />
     </MapContainer>
   );
 }

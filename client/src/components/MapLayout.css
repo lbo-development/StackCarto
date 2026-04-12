@@ -1999,3 +1999,48 @@ button {
   color: #475569;
   margin-bottom: 8px;
 }
+.zoom-level-control {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+
+  font: 12px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
+  padding: 2px 6px;
+
+  box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+}
+.plan-coordinates-badge {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  padding: 4px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+  pointer-events: none;
+}
+.plan-toolbar-heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.plan-toolbar-breadcrumb {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
