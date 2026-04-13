@@ -27,6 +27,8 @@ import { fetchCartoTree } from "../lib/cartoApi";
 import { supabase } from "../lib/supabase";
 import { ListChevronsDownUp, ListChevronsUpDown, Menu } from "lucide-react";
 
+import PdfViewerModal from "./PdfViewerModal";
+import { getPublicDocumentUrl } from "../lib/storageDocuments";
 delete L.Icon.Default.prototype._getIconUrl;
 
 L.Icon.Default.mergeOptions({
@@ -789,7 +791,9 @@ export default function MapLayout({
 
   const [viewMode, setViewMode] = useState("map");
   const [activePlan, setActivePlan] = useState(null);
-
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
+  const [pdfViewerTitle, setPdfViewerTitle] = useState("");
+  const [pdfViewerUrl, setPdfViewerUrl] = useState("");
   const [layersOpen, setLayersOpen] = useState(false);
   const [layersLoading, setLayersLoading] = useState(false);
   const [layersError, setLayersError] = useState("");
@@ -1169,17 +1173,6 @@ export default function MapLayout({
     };
   }, [basemap]);
 
-  const closePlan = useCallback(() => {
-    setActivePlan(null);
-    setViewMode("map");
-    setLayersOpen(false);
-    setAvailableLayers([]);
-    setLayerContext(null);
-    setLayersError("");
-    setLayersLoading(false);
-    clearRenderedLayers();
-  }, [clearRenderedLayers]);
-
   const flyToNodeCenter = useCallback((node) => {
     const center = node?.center ?? node?.data?.center ?? null;
     const zoom = node?.zoom ?? node?.data?.zoom ?? DEFAULT_FEATURE_ZOOM;
@@ -1397,6 +1390,60 @@ export default function MapLayout({
     [addLayerToMap, removeLayerFromMap],
   );
 
+  const closePdfViewer = useCallback(() => {
+    setPdfViewerOpen(false);
+    setPdfViewerTitle("");
+    setPdfViewerUrl("");
+  }, []);
+
+  const openPdfDocument = useCallback((node) => {
+    const rawPath = node?.data?.path_file ?? node?.path_file ?? "";
+    const mimeType = node?.data?.mime_type ?? node?.mime_type ?? "";
+    const title =
+      node?.label ??
+      node?.data?.lib_file ??
+      node?.data?.name_file ??
+      node?.name_file ??
+      "Document PDF";
+
+    if (!rawPath) {
+      console.error("Aucun path_file trouvé pour le document :", node);
+      return;
+    }
+
+    // On ne lance le viewer que pour les PDF
+    if (mimeType && mimeType !== "application/pdf") {
+      const directUrl = getPublicDocumentUrl(rawPath);
+      window.open(directUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    const publicUrl = getPublicDocumentUrl(rawPath);
+
+    if (!publicUrl) {
+      console.error(
+        "Impossible de construire l'URL publique du document :",
+        node,
+      );
+      return;
+    }
+
+    setPdfViewerTitle(title);
+    setPdfViewerUrl(publicUrl);
+    setPdfViewerOpen(true);
+  }, []);
+  const closePlan = useCallback(() => {
+    setActivePlan(null);
+    setViewMode("map");
+    setLayersOpen(false);
+    setAvailableLayers([]);
+    setLayerContext(null);
+    setLayersError("");
+    setLayersLoading(false);
+    closePdfViewer();
+    clearRenderedLayers();
+  }, [clearRenderedLayers, closePdfViewer]);
+
   const handleNodeClick = useCallback(
     async (node) => {
       setSelectedNode(node);
@@ -1485,11 +1532,8 @@ export default function MapLayout({
         (node?.data?.path_file || node?.path_file)
       ) {
         closeLayersPanel();
-        window.open(
-          node?.data?.path_file ?? node?.path_file,
-          "_blank",
-          "noopener,noreferrer",
-        );
+        openPdfDocument(node);
+        return;
       }
     },
     [
@@ -1497,6 +1541,7 @@ export default function MapLayout({
       closePlan,
       flyToNodeCenter,
       loadLayersForNode,
+      openPdfDocument,
       openPlan,
       viewMode,
     ],
@@ -1958,6 +2003,12 @@ export default function MapLayout({
           )}
         </main>
       </div>
+      <PdfViewerModal
+        open={pdfViewerOpen}
+        title={pdfViewerTitle}
+        pdfUrl={pdfViewerUrl}
+        onClose={closePdfViewer}
+      />
     </div>
   );
 }
