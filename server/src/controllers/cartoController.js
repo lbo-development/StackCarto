@@ -42,7 +42,7 @@ export async function getMapLayers(req, res) {
       });
     }
 
-    if (!["service", "site", "installation"].includes(type)) {
+    if (!["service", "site", "installation", "file_plan"].includes(type)) {
       return res.status(400).json({
         message: "Type invalide.",
       });
@@ -51,7 +51,7 @@ export async function getMapLayers(req, res) {
     let supportsQuery = supabase
       .from("supports_calques")
       .select(
-        "id_support_calque, type_support, id_service, id_site, id_installation",
+        "id_support_calque, type_support, id_service, id_site, id_installation, id_file",
       )
       .eq("type_support", type);
 
@@ -61,8 +61,9 @@ export async function getMapLayers(req, res) {
       supportsQuery = supportsQuery.eq("id_site", id);
     } else if (type === "installation") {
       supportsQuery = supportsQuery.eq("id_installation", id);
+    } else if (type === "file_plan") {
+      supportsQuery = supportsQuery.eq("id_file", id);
     }
-
     const { data: supports, error: supportsError } = await supportsQuery;
 
     if (supportsError) {

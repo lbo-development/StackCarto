@@ -80,6 +80,7 @@ function MapInstanceCapture({ mapRef, onReady }) {
 
   return null;
 }
+
 function ZoomWatcher({ onZoomChange }) {
   const map = useMapEvents({
     zoom() {
@@ -148,7 +149,7 @@ function BasemapSwitcher({
         title={
           layersEnabled
             ? "Afficher les calques disponibles"
-            : "Sélectionnez un service, un site ou une installation"
+            : "Sélectionnez un support disposant de calques"
         }
         disabled={!layersEnabled}
       >
@@ -362,7 +363,7 @@ function LayersPanel({
         </div>
       ) : layers.length === 0 ? (
         <div className="layers-panel__state">
-          Aucun calque disponible pour cette carte.
+          Aucun calque disponible pour ce support.
         </div>
       ) : (
         <div className="layers-panel__list">
@@ -375,7 +376,14 @@ function LayersPanel({
               : 22;
             const isInZoomRange =
               currentMapZoom >= minZoom && currentMapZoom <= maxZoom;
-
+            console.log("TOOLBAR DEBUG", {
+              name: layer.lib_calque,
+              type: layer.type,
+              minZoom,
+              maxZoom,
+              currentMapZoom,
+              isInZoomRange,
+            });
             return (
               <label
                 key={layer.id_calque}
@@ -471,6 +479,7 @@ function SelectedMarker({ feature }) {
     </Marker>
   );
 }
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -548,7 +557,6 @@ function toLatLng(coords) {
 
 function createPopupHtml(obj) {
   const props = obj?.properties ?? {};
-
   const title = escapeHtml(obj.lib_objet || obj.code_objet || "Objet");
 
   const description = obj?.description_objet
@@ -690,6 +698,17 @@ function extractNodeContextId(node, nodeType) {
     );
   }
 
+  if (nodeType === "file_plan") {
+    return (
+      node?.data?.fileId ??
+      node?.fileId ??
+      node?.data?.id_file ??
+      node?.id_file ??
+      node?.data?.id ??
+      null
+    );
+  }
+
   if (typeof node?.id === "string") {
     const prefix = `${nodeType}-`;
     if (node.id.startsWith(prefix)) {
@@ -726,6 +745,18 @@ function findNodePathLabels(tree, targetNodeId) {
   }
 
   return walk(tree, []);
+}
+
+function getNodeSupportType(node) {
+  const nodeType = node?.type ?? node?.data?.type ?? null;
+  const category = node?.data?.categorie_file ?? node?.categorie_file ?? null;
+
+  if (nodeType === "plan" || category === "plan") return "file_plan";
+  if (nodeType === "service") return "service";
+  if (nodeType === "site") return "site";
+  if (nodeType === "installation") return "installation";
+
+  return null;
 }
 
 export default function MapLayout({
@@ -767,6 +798,8 @@ export default function MapLayout({
   const [currentMapZoom, setCurrentMapZoom] = useState(DEFAULT_MAP_ZOOM);
   const layerListRequestControllerRef = useRef(null);
   const layerListRequestVersionRef = useRef(0);
+  const [planLayerObjects, setPlanLayerObjects] = useState({});
+  const [currentPlanZoom, setCurrentPlanZoom] = useState(0);
   const [layersPanelPosition, setLayersPanelPosition] = useState({
     x: 0,
     y: 18,
@@ -787,6 +820,7 @@ export default function MapLayout({
     abortAllPendingLayerRequests();
     desiredVisibleLayersRef.current = {};
     contextVersionRef.current += 1;
+    setPlanLayerObjects({});
 
     const map = mapRef.current;
     if (map) {
@@ -847,6 +881,12 @@ export default function MapLayout({
       }
       delete pendingControllersRef.current[layerId];
     }
+
+    setPlanLayerObjects((prev) => {
+      const next = { ...prev };
+      delete next[layerId];
+      return next;
+    });
 
     const map = mapRef.current;
     const group = layerGroupsRef.current[layerId];
@@ -921,7 +961,21 @@ export default function MapLayout({
         }
 
         const objects = await response.json();
+        const normalizedObjects = Array.isArray(objects) ? objects : [];
 
+        setPlanLayerObjects((prev) => ({
+          ...prev,
+          [layerId]: normalizedObjects,
+        }));
+        console.log("VIEWMODE DEBUG", viewMode);
+        if (viewMode === "plan") {
+          console.log("STOP addLayerToMap in plan mode");
+          return;
+        }
+
+        if (viewMode === "plan") {
+          return;
+        }
         if (controller.signal.aborted) return;
         if (requestContextVersion !== contextVersionRef.current) return;
         if (!desiredVisibleLayersRef.current[layerId]) return;
@@ -940,9 +994,23 @@ export default function MapLayout({
           });
         }
 
-        (Array.isArray(objects) ? objects : []).forEach((obj) => {
+        normalizedObjects.forEach((obj) => {
           const leafletLayer = createLayerFromGeometry(obj, layer);
-          if (leafletLayer) {
+          if (!leafletLayer) return;
+
+          if (isClusterLayer(layer)) {
+            if (leafletLayer instanceof L.Marker) {
+              group.addLayer(leafletLayer);
+            } else {
+              console.warn("Objet ignoré dans cluster group :", {
+                calque: layer.lib_calque,
+                typeEntite: layer.type_entite,
+                geomType: obj?.geom?.type,
+                leafletType: leafletLayer?.constructor?.name,
+                obj,
+              });
+            }
+          } else {
             group.addLayer(leafletLayer);
           }
         });
@@ -993,7 +1061,7 @@ export default function MapLayout({
         }
       }
     },
-    [syncRenderedLayersWithZoom],
+    [syncRenderedLayersWithZoom, viewMode],
   );
 
   const showAllLayers = useCallback(() => {
@@ -1035,7 +1103,7 @@ export default function MapLayout({
       x: Math.max(0, mapShell.clientWidth - panel.offsetWidth - margin),
       y: 18,
     });
-  }, [layersOpen]);
+  }, [layersOpen, viewMode]);
 
   const activeLayersCount = useMemo(
     () => availableLayers.filter((layer) => Boolean(layer.visible)).length,
@@ -1104,50 +1172,13 @@ export default function MapLayout({
   const closePlan = useCallback(() => {
     setActivePlan(null);
     setViewMode("map");
-  }, []);
-
-  const openPlan = useCallback(
-    async (node) => {
-      const rawPath = node?.data?.path_file ?? node?.path_file ?? null;
-
-      if (!rawPath) {
-        console.error("Aucun path_file trouvé pour le plan :", node);
-        return;
-      }
-
-      try {
-        const { data } = supabase.storage
-          .from(PLAN_BUCKET)
-          .getPublicUrl(rawPath);
-
-        const breadcrumb = findNodePathLabels(treeData, node?.id);
-
-        setActivePlan({
-          id: node?.data?.fileId ?? node?.fileId ?? node?.id,
-          title:
-            node?.label ??
-            node?.data?.lib_file ??
-            node?.data?.name_file ??
-            node?.name_file ??
-            "Plan",
-          breadcrumb,
-          url: data?.publicUrl,
-          path_file: rawPath,
-          name_file: node?.data?.name_file ?? node?.name_file ?? null,
-          mime_type: node?.data?.mime_type ?? node?.mime_type ?? null,
-          svg_width: node?.data?.svg_width ?? node?.svg_width ?? null,
-          svg_height: node?.data?.svg_height ?? node?.svg_height ?? null,
-          svg_viewbox: node?.data?.svg_viewbox ?? node?.svg_viewbox ?? null,
-        });
-
-        setSelectedFeature(null);
-        setViewMode("plan");
-      } catch (error) {
-        console.error("Erreur ouverture plan :", error);
-      }
-    },
-    [treeData],
-  );
+    setLayersOpen(false);
+    setAvailableLayers([]);
+    setLayerContext(null);
+    setLayersError("");
+    setLayersLoading(false);
+    clearRenderedLayers();
+  }, [clearRenderedLayers]);
 
   const flyToNodeCenter = useCallback((node) => {
     const center = node?.center ?? node?.data?.center ?? null;
@@ -1169,15 +1200,16 @@ export default function MapLayout({
 
   const loadLayersForNode = useCallback(
     async (node) => {
-      const nodeType = node?.type ?? null;
+      const supportType = getNodeSupportType(node);
 
       clearRenderedLayers();
       setLayersOpen(false);
 
       if (
-        nodeType !== "site" &&
-        nodeType !== "service" &&
-        nodeType !== "installation"
+        supportType !== "site" &&
+        supportType !== "service" &&
+        supportType !== "installation" &&
+        supportType !== "file_plan"
       ) {
         setLayerContext(null);
         setAvailableLayers([]);
@@ -1186,14 +1218,13 @@ export default function MapLayout({
         return;
       }
 
-      const contextId = extractNodeContextId(node, nodeType);
+      const contextId = extractNodeContextId(node, supportType);
 
       const context = {
-        type: nodeType,
+        type: supportType,
         id: contextId,
         label: node?.label ?? "Sans nom",
       };
-      console.log("LAYER CONTEXT =", context);
 
       setLayerContext(context);
 
@@ -1223,7 +1254,7 @@ export default function MapLayout({
         const url = `${API_BASE_URL}/api/carto/map-layers?type=${encodeURIComponent(
           context.type,
         )}&id=${encodeURIComponent(context.id)}`;
-        console.log("MAP-LAYERS URL =", url);
+
         const response = await fetch(url, {
           signal: controller.signal,
         });
@@ -1234,7 +1265,7 @@ export default function MapLayout({
         }
 
         const data = await response.json();
-        console.log("MAP-LAYERS RESPONSE =", data);
+
         if (controller.signal.aborted) return;
         if (requestVersion !== layerListRequestVersionRef.current) return;
 
@@ -1283,6 +1314,56 @@ export default function MapLayout({
     [addLayerToMap, clearRenderedLayers],
   );
 
+  const openPlan = useCallback(
+    async (node) => {
+      const rawPath = node?.data?.path_file ?? node?.path_file ?? null;
+
+      if (!rawPath) {
+        console.error("Aucun path_file trouvé pour le plan :", node);
+        return;
+      }
+
+      try {
+        await loadLayersForNode(node);
+
+        const { data } = supabase.storage
+          .from(PLAN_BUCKET)
+          .getPublicUrl(rawPath);
+
+        const breadcrumb = findNodePathLabels(treeData, node?.id);
+
+        setActivePlan({
+          id:
+            node?.data?.fileId ??
+            node?.fileId ??
+            node?.data?.id_file ??
+            node?.id_file ??
+            node?.id,
+          title:
+            node?.label ??
+            node?.data?.lib_file ??
+            node?.data?.name_file ??
+            node?.name_file ??
+            "Plan",
+          breadcrumb,
+          url: data?.publicUrl,
+          path_file: rawPath,
+          name_file: node?.data?.name_file ?? node?.name_file ?? null,
+          mime_type: node?.data?.mime_type ?? node?.mime_type ?? null,
+          svg_width: node?.data?.svg_width ?? node?.svg_width ?? null,
+          svg_height: node?.data?.svg_height ?? node?.svg_height ?? null,
+          svg_viewbox: node?.data?.svg_viewbox ?? node?.svg_viewbox ?? null,
+        });
+
+        setSelectedFeature(null);
+        setViewMode("plan");
+      } catch (error) {
+        console.error("Erreur ouverture plan :", error);
+      }
+    },
+    [loadLayersForNode, treeData],
+  );
+
   const toggleLayersPanel = useCallback(() => {
     setLayersOpen((prev) => !prev);
   }, []);
@@ -1318,7 +1399,6 @@ export default function MapLayout({
 
   const handleNodeClick = useCallback(
     async (node) => {
-      console.log("CLICKED NODE =", node);
       setSelectedNode(node);
 
       const nodeType = node?.type ?? node?.data?.type ?? null;
@@ -1333,7 +1413,6 @@ export default function MapLayout({
 
       const isPlan = nodeType === "plan" || category === "plan";
       if (isPlan) {
-        closeLayersPanel();
         await openPlan(node);
         return;
       }
@@ -1433,13 +1512,40 @@ export default function MapLayout({
     setTreeActionToken((v) => v + 1);
   }, []);
 
-  const layersEnabled =
-    viewMode === "map" &&
-    (layerContext?.type === "site" ||
-      layerContext?.type === "service" ||
-      layerContext?.type === "installation");
+  const layersEnabled = useMemo(() => {
+    if (viewMode === "map") {
+      return (
+        layerContext?.type === "site" ||
+        layerContext?.type === "service" ||
+        layerContext?.type === "installation"
+      );
+    }
 
-  const layerContextLabel = layerContext?.label || "";
+    if (viewMode === "plan") {
+      return layerContext?.type === "file_plan";
+    }
+
+    return false;
+  }, [layerContext?.type, viewMode]);
+
+  const layerContextLabel = useMemo(() => {
+    if (viewMode === "plan") {
+      if (
+        Array.isArray(activePlan?.breadcrumb) &&
+        activePlan.breadcrumb.length
+      ) {
+        return activePlan.breadcrumb.join(" › ");
+      }
+      return activePlan?.title || layerContext?.label || "";
+    }
+
+    return layerContext?.label || "";
+  }, [
+    activePlan?.breadcrumb,
+    activePlan?.title,
+    layerContext?.label,
+    viewMode,
+  ]);
 
   const handleMapReady = useCallback(
     (map) => {
@@ -1716,6 +1822,23 @@ export default function MapLayout({
         />
 
         <main className="map-shell">
+          <LayersPanel
+            open={layersOpen}
+            contextLabel={layerContextLabel}
+            layers={availableLayers}
+            loading={layersLoading}
+            error={layersError}
+            onClose={closeLayersPanel}
+            onToggleLayer={toggleLayerVisibility}
+            onShowAll={showAllLayers}
+            onHideAll={hideAllLayers}
+            position={layersPanelPosition}
+            onPositionChange={setLayersPanelPosition}
+            currentMapZoom={
+              viewMode === "plan" ? currentPlanZoom : currentMapZoom
+            }
+          />
+
           {viewMode === "map" ? (
             <>
               <div className="map-hover-ui">
@@ -1728,21 +1851,6 @@ export default function MapLayout({
                   activeLayersCount={activeLayersCount}
                 />
               </div>
-
-              <LayersPanel
-                open={layersOpen}
-                contextLabel={layerContextLabel}
-                layers={availableLayers}
-                loading={layersLoading}
-                error={layersError}
-                onClose={closeLayersPanel}
-                onToggleLayer={toggleLayerVisibility}
-                onShowAll={showAllLayers}
-                onHideAll={hideAllLayers}
-                position={layersPanelPosition}
-                onPositionChange={setLayersPanelPosition}
-                currentMapZoom={currentMapZoom}
-              />
 
               <MapContainer
                 center={CENTER}
@@ -1792,10 +1900,59 @@ export default function MapLayout({
                       : (activePlan?.title ?? "Plan")}
                   </div>
                 </div>
+
+                <div className="plan-toolbar-actions">
+                  <button
+                    type="button"
+                    className={`plan-layers-btn ${layersOpen ? "active" : ""}`}
+                    onClick={toggleLayersPanel}
+                    aria-pressed={layersOpen}
+                    aria-label="Afficher les calques du plan"
+                    title={
+                      layersEnabled
+                        ? "Afficher les calques du plan"
+                        : "Aucun calque disponible pour ce plan"
+                    }
+                    disabled={!layersEnabled}
+                  >
+                    <span className="plan-layers-btn__icon layers-icon-wrap">
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="22"
+                        height="22"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polygon
+                          points="12 3 3 8 12 13 21 8 12 3"
+                          fill="currentColor"
+                          opacity="0.22"
+                        />
+                        <polyline points="3 12 12 17 21 12" />
+                        <polyline points="3 16 12 21 21 16" />
+                      </svg>
+
+                      {activeLayersCount > 0 && (
+                        <span className="layers-badge-dot" />
+                      )}
+                    </span>
+
+                    <span className="plan-layers-btn__label">Calques</span>
+                  </button>
+                </div>
               </div>
 
               <div className="plan-canvas">
-                <PlanViewer plan={activePlan} menuOpen={menuOpen} />
+                <PlanViewer
+                  plan={activePlan}
+                  menuOpen={menuOpen}
+                  layers={availableLayers}
+                  layerObjects={planLayerObjects}
+                  onZoomChange={setCurrentPlanZoom}
+                />
               </div>
             </div>
           )}
